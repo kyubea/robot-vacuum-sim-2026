@@ -1,0 +1,16 @@
+{
+    "java.configuration.updateBuildConfiguration": "automatic",
+    "java.compile.nullAnalysis.mode": "automatic",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "java.format.settings.url": "https://raw.githubusercontent.com/google/styleguide/gh-pages/eclipse-java-google-style.xml",
+    "files.exclude": {
+        "**/.gradle": true,
+        "**/build": true,
+        "**/.classpath": true,
+        "**/.project": true,
+        "**/.settings": true
+    },
+    "java.saveActions.organizeImports": true
+}
