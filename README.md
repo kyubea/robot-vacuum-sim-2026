@@ -7,7 +7,7 @@ CS 499 Senior Design Project - Spring 2026
 ### Prerequisites
 - Java 17 or higher
 - Git
-- VS Code (recommended)
+- VS Code
 
 ### Setup
 ```bash
