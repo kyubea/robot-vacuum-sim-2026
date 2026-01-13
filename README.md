@@ -8,6 +8,7 @@ CS 499 Senior Design Project - Spring 2026
 - Java 17 or higher
 - Git
 - VS Code
+- The exensions we're using are "extension pack for java" and "gradle for java"
 
 ### Setup
 ```bash
