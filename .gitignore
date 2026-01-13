@@ -2,7 +2,6 @@
 .gradle/
 build/
 gradle-app.setting
-!gradle-wrapper.jar
 
 # IDE
 .vscode/
