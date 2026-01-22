@@ -116,6 +116,10 @@ public class House {
         if (obstruction == null) {
             throw new IllegalArgumentException("Obstruction cannot be null");
         }
+        Room obstructionRoom = obstruction.getRoom();
+        if (obstructionRoom == null || !rooms.contains(obstructionRoom)) {
+            throw new IllegalArgumentException("Obstruction must be placed within a room in this house");
+        }
         obstructions.add(obstruction);
     }
 
