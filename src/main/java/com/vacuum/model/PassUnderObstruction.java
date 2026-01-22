@@ -2,7 +2,7 @@ package com.vacuum.model;
 
 /**
  * Pass-under obstruction that vacuum can traverse beneath. Examples: chairs, tables with legs, bed
- * frames Req 3.2, 3.4: Vacuum shall be able to traverse beneath pass-under obstructions
+ * frames. Req 3.2, 3.4: Vacuum shall be able to traverse beneath pass-under obstructions
  */
 public class PassUnderObstruction extends Obstruction {
     private double legDiameter; // Diameter of legs in inches
