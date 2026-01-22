@@ -75,7 +75,7 @@ public class Room {
      * Check if a point is inside this room
      */
     public boolean contains(double px, double py) {
-        return px >= x && px <= x + width && py >= y && py <= y + height;
+        return px >= x && px < x + width && py >= y && py < y + height;
     }
 
     /**
