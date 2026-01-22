@@ -46,6 +46,9 @@ public class House {
      * Add a room to the house
      */
     public void addRoom(Room room) {
+        if (room == null) {
+            throw new IllegalArgumentException("Room must not be null");
+        }
         // Check for overlap with existing rooms
         for (Room existing : rooms) {
             if (existing.intersects(room)) {
