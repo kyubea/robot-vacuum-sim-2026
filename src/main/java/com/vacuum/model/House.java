@@ -10,6 +10,7 @@ import java.util.List;
 public class House {
     private List<Room> rooms;
     private List<Door> doors;
+    private List<Obstruction> obstructions;
     private FloorCovering floorCovering;
 
     public static final double MIN_TOTAL_AREA = 200.0; // square feet
@@ -39,6 +40,7 @@ public class House {
     public House() {
         this.rooms = new ArrayList<>();
         this.doors = new ArrayList<>();
+        this.obstructions = new ArrayList<>();
         this.floorCovering = FloorCovering.HARD; // Default
     }
 
@@ -105,6 +107,46 @@ public class House {
         door.getRoom1().removeDoor(door);
         door.getRoom2().removeDoor(door);
         doors.remove(door);
+    }
+
+    /**
+     * Add an obstruction to the house (Req 3.1)
+     */
+    public void addObstruction(Obstruction obstruction) {
+        if (obstruction == null) {
+            throw new IllegalArgumentException("Obstruction cannot be null");
+        }
+        obstructions.add(obstruction);
+    }
+
+    /**
+     * Remove an obstruction from the house
+     */
+    public void removeObstruction(Obstruction obstruction) {
+        if (obstruction == null) {
+            throw new IllegalArgumentException("Obstruction cannot be null");
+        }
+        obstructions.remove(obstruction);
+    }
+
+    /**
+     * Get total non-cleanable area from blocking obstructions (Req 3.5)
+     */
+    public double getNonCleanableArea() {
+        double total = 0.0;
+        for (Obstruction obstruction : obstructions) {
+            if (obstruction.blocksCleanableArea()) {
+                total += obstruction.getArea();
+            }
+        }
+        return total;
+    }
+
+    /**
+     * Get cleanable area (total area minus non-cleanable) (Req 3.6)
+     */
+    public double getCleanableArea() {
+        return getTotalArea() - getNonCleanableArea();
     }
 
     /**
@@ -180,13 +222,18 @@ public class House {
         return new ArrayList<>(doors);
     }
 
+    public List<Obstruction> getObstructions() {
+        return new ArrayList<>(obstructions);
+    }
+
     public FloorCovering getFloorCovering() {
         return floorCovering;
     }
 
     @Override
     public String toString() {
-        return String.format("House[rooms=%d, doors=%d, area=%.1f ft², covering=%s, valid=%s]",
-                rooms.size(), doors.size(), getTotalArea(), floorCovering.name(), isValid());
+        return String.format("House[rooms=%d, doors=%d, obstructions=%d, area=%.1f ft², cleanable=%.1f ft², covering=%s, valid=%s]",
+            rooms.size(), doors.size(), obstructions.size(), getTotalArea(), 
+            getCleanableArea(), floorCovering.name(), isValid());
     }
 }
