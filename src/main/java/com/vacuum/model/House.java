@@ -103,7 +103,9 @@ public class House {
     }
 
     /**
-     * Validate house configuration (Req 2.5) Returns a list of validation errors, empty if valid
+     * Validate house configuration (Req 2.5)
+     *
+     * @return a list of validation errors, empty if valid
      */
     public List<String> validate() {
         List<String> errors = new ArrayList<>();
