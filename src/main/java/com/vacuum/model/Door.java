@@ -6,8 +6,8 @@ package com.vacuum.model;
 
 public class Door {
     private final String id;
-    private Room room1;
-    private Room room2;
+    private final Room room1;
+    private final Room room2;
     private double x; // Door position X
     private double y; // Door position Y
     private double width; // Door width in feet
