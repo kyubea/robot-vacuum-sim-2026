@@ -100,6 +100,9 @@ public class VacuumConfig {
      * Apply floor covering default efficiency to vacuum
      */
     public void applyFloorCovering(House.FloorCovering covering) {
+        if (covering == null) {
+            throw new IllegalArgumentException("Floor covering must not be null");
+        }
         setVacuumEfficiency(covering.getDefaultEfficiency());
     }
 
