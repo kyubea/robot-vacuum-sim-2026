@@ -28,6 +28,9 @@ public class Door {
         if (room1 == null || room2 == null) {
             throw new IllegalArgumentException("Door must connect two rooms");
         }
+        if (orientation == null) {
+            throw new IllegalArgumentException("Door orientation must not be null");
+        }
         if (width <= 0) {
             throw new IllegalArgumentException("Door width must be positive");
         }
