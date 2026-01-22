@@ -80,6 +80,9 @@ public class House {
      * Add a door connecting two rooms
      */
     public void addDoor(Door door) {
+        if (door == null) {
+            throw new IllegalArgumentException("Door cannot be null");
+        }
         if (!rooms.contains(door.getRoom1()) || !rooms.contains(door.getRoom2())) {
             throw new IllegalArgumentException("Door must connect rooms in this house");
         }
