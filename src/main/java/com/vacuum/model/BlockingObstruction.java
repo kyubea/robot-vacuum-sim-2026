@@ -1,8 +1,8 @@
 package com.vacuum.model;
 
 /**
- * Blocking obstruction that vacuum cannot traverse. Examples: chests, low furniture, appliances Req
- * 3.2, 3.3: Vacuum shall not traverse blocking obstructions
+ * Blocking obstruction that vacuum cannot traverse. Examples: chests, low furniture, appliances.
+ * Req 3.2, 3.3: Vacuum shall not traverse blocking obstructions
  */
 public class BlockingObstruction extends Obstruction {
 
