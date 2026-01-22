@@ -99,6 +99,9 @@ public class House {
      * Remove a door from the house
      */
     public void removeDoor(Door door) {
+        if (door == null) {
+            throw new IllegalArgumentException("Door must not be null");
+        }
         door.getRoom1().removeDoor(door);
         door.getRoom2().removeDoor(door);
         doors.remove(door);
