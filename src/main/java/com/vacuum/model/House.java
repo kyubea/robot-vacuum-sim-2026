@@ -116,12 +116,9 @@ public class House {
         if (obstruction == null) {
             throw new IllegalArgumentException("Obstruction cannot be null");
         }
-        Room obstructionRoom = obstruction.getRoom();
-        if (obstructionRoom == null || !rooms.contains(obstructionRoom)) {
-            throw new IllegalArgumentException("Obstruction must be placed within a room in this house");
-        }
         obstructions.add(obstruction);
     }
+
 
     /**
      * Remove an obstruction from the house
@@ -189,12 +186,10 @@ public class House {
                         room.getId().substring(0, 8)));
             }
             if (room.getArea() < Room.MIN_AREA) {
-                areaErrors.add(String.format(
-                        "Room %s area (%.2f ft²) is below minimum (%.2f ft²)",
+                areaErrors.add(String.format("Room %s area (%.2f ft²) is below minimum (%.2f ft²)",
                         room.getId().substring(0, 8), room.getArea(), Room.MIN_AREA));
             }
         }
-
         errors.addAll(connectivityErrors);
         errors.addAll(areaErrors);
         return errors;
@@ -236,8 +231,11 @@ public class House {
 
     @Override
     public String toString() {
-        return String.format("House[rooms=%d, doors=%d, obstructions=%d, area=%.1f ft², cleanable=%.1f ft², covering=%s, valid=%s]",
-                rooms.size(), doors.size(), obstructions.size(), getTotalArea(),
-                getCleanableArea(), floorCovering.name(), isValid());
+        return String.format(
+                "House[rooms=%d, doors=%d, obstructions=%d, area=%.1f ft², cleanable=%.1f ft², covering=%s, valid=%s]",
+                rooms.size(), doors.size(), obstructions.size(), getTotalArea(), getCleanableArea(),
+                floorCovering.name(), isValid());
     }
 }
+
+
