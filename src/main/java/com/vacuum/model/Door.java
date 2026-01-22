@@ -8,9 +8,9 @@ public class Door {
     private final String id;
     private final Room room1;
     private final Room room2;
-    private double x; // Door position X
-    private double y; // Door position Y
-    private double width; // Door width in feet
+    private final double x; // Door position X
+    private final double y; // Door position Y
+    private final double width; // Door width in feet
     private Orientation orientation;
 
     public enum Orientation {
