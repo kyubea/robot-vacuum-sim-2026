@@ -64,6 +64,9 @@ public class House {
      * Remove a room from the house
      */
     public void removeRoom(Room room) {
+        if (room == null) {
+            throw new IllegalArgumentException("room cannot be null");
+        }
         // Remove all doors connected to this room
         List<Door> doorsToRemove = new ArrayList<>();
         for (Door door : doors) {
