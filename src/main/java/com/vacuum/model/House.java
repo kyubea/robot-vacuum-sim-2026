@@ -233,7 +233,7 @@ public class House {
     @Override
     public String toString() {
         return String.format("House[rooms=%d, doors=%d, obstructions=%d, area=%.1f ft², cleanable=%.1f ft², covering=%s, valid=%s]",
-            rooms.size(), doors.size(), obstructions.size(), getTotalArea(), 
-            getCleanableArea(), floorCovering.name(), isValid());
+                rooms.size(), doors.size(), obstructions.size(), getTotalArea(),
+                getCleanableArea(), floorCovering.name(), isValid());
     }
 }
