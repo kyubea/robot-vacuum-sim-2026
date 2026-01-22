@@ -70,16 +70,73 @@ public class Door {
      * Check if door position is valid (on shared wall between rooms)
      */
     public boolean isValidPosition() {
-        // Check if door is on a shared boundary between the two rooms
-        boolean sharesVerticalBoundary =
-                (Math.abs(room1.getX() + room1.getWidth() - room2.getX()) < 0.01)
-                        || (Math.abs(room2.getX() + room2.getWidth() - room1.getX()) < 0.01);
+        if (room1 == null || room2 == null || orientation == null) {
+            return false;
+        }
 
-        boolean sharesHorizontalBoundary =
-                (Math.abs(room1.getY() + room1.getHeight() - room2.getY()) < 0.01)
-                        || (Math.abs(room2.getY() + room2.getHeight() - room1.getY()) < 0.01);
+        final double EPS = 0.01;
 
-        return sharesVerticalBoundary || sharesHorizontalBoundary;
+        // Room 1 edges
+        double r1Left = room1.getX();
+        double r1Right = room1.getX() + room1.getWidth();
+        double r1Top = room1.getY();
+        double r1Bottom = room1.getY() + room1.getHeight();
+
+        // Room 2 edges
+        double r2Left = room2.getX();
+        double r2Right = room2.getX() + room2.getWidth();
+        double r2Top = room2.getY();
+        double r2Bottom = room2.getY() + room2.getHeight();
+
+        boolean validVerticalDoor = false;
+
+        // Check shared vertical boundary (door spans along Y, wall is vertical at some X)
+        double boundaryX;
+        if (Math.abs(r1Right - r2Left) < EPS) {
+            boundaryX = (r1Right + r2Left) / 2.0;
+        } else if (Math.abs(r2Right - r1Left) < EPS) {
+            boundaryX = (r2Right + r1Left) / 2.0;
+        } else {
+            boundaryX = Double.NaN;
+        }
+
+        if (!Double.isNaN(boundaryX) && orientation == Orientation.VERTICAL) {
+            // Overlapping vertical span between rooms
+            double overlapTop = Math.max(r1Top, r2Top);
+            double overlapBottom = Math.min(r1Bottom, r2Bottom);
+            if (overlapBottom - overlapTop > EPS) {
+                boolean onBoundary = Math.abs(this.x - boundaryX) < EPS;
+                boolean withinOverlap =
+                        (this.y + this.width) <= overlapBottom + EPS && this.y >= overlapTop - EPS;
+                validVerticalDoor = onBoundary && withinOverlap;
+            }
+        }
+
+        boolean validHorizontalDoor = false;
+
+        // Check shared horizontal boundary (door spans along X, wall is horizontal at some Y)
+        double boundaryY;
+        if (Math.abs(r1Bottom - r2Top) < EPS) {
+            boundaryY = (r1Bottom + r2Top) / 2.0;
+        } else if (Math.abs(r2Bottom - r1Top) < EPS) {
+            boundaryY = (r2Bottom + r1Top) / 2.0;
+        } else {
+            boundaryY = Double.NaN;
+        }
+
+        if (!Double.isNaN(boundaryY) && orientation == Orientation.HORIZONTAL) {
+            // Overlapping horizontal span between rooms
+            double overlapLeft = Math.max(r1Left, r2Left);
+            double overlapRight = Math.min(r1Right, r2Right);
+            if (overlapRight - overlapLeft > EPS) {
+                boolean onBoundary = Math.abs(this.y - boundaryY) < EPS;
+                boolean withinOverlap =
+                        (this.x + this.width) <= overlapRight + EPS && this.x >= overlapLeft - EPS;
+                validHorizontalDoor = onBoundary && withinOverlap;
+            }
+        }
+
+        return validVerticalDoor || validHorizontalDoor;
     }
 
     // Getters
