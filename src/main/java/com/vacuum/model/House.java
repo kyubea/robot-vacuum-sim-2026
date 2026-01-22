@@ -165,6 +165,9 @@ public class House {
      * Set the floor covering for the entire house (Req 2.6)
      */
     public void setFloorCovering(FloorCovering covering) {
+        if (covering == null) {
+            throw new IllegalArgumentException("Floor covering cannot be null");
+        }
         this.floorCovering = covering;
     }
 
