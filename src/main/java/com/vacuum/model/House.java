@@ -119,22 +119,24 @@ public class House {
                     MAX_TOTAL_AREA));
         }
 
-        // Check each room has at least one door (Req 2.4)
+        // Check each room has at least one door (Req 2.4) and minimum area in a single pass
+        List<String> connectivityErrors = new ArrayList<>();
+        List<String> areaErrors = new ArrayList<>();
+
         for (Room room : rooms) {
             if (!room.hasValidConnectivity()) {
-                errors.add(String.format("Room %s has no doors/connections",
+                connectivityErrors.add(String.format("Room %s has no doors/connections",
                         room.getId().substring(0, 8)));
             }
-        }
-
-        // Check room minimum area (should be caught at Room level, but double-check)
-        for (Room room : rooms) {
             if (room.getArea() < Room.MIN_AREA) {
-                errors.add(String.format("Room %s area (%.2f ft²) is below minimum (%.2f ft²)",
+                areaErrors.add(String.format(
+                        "Room %s area (%.2f ft²) is below minimum (%.2f ft²)",
                         room.getId().substring(0, 8), room.getArea(), Room.MIN_AREA));
             }
         }
 
+        errors.addAll(connectivityErrors);
+        errors.addAll(areaErrors);
         return errors;
     }
 
