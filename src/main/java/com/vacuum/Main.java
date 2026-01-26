@@ -1,7 +1,9 @@
 package com.vacuum;
 
+import com.vacuum.ui.VacuumSimulatorApp;
+
 public class Main {
     public static void main(String[] args) {
-        System.out.println("Robot Vacuum Simulator");
+        VacuumSimulatorApp.main(args);
     }
 }
