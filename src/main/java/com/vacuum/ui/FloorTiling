@@ -1,0 +1,29 @@
+package com.vacuum.ui;
+
+import com.vacuum.model.*;
+import javafx.geometry.Insets;
+import javafx.scene.Cursor;
+import javafx.scene.control.Label;
+import javafx.scene.layout.Background;
+import javafx.scene.layout.BackgroundFill;
+import javafx.scene.layout.CornerRadii;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.paint.ImagePattern;
+import javafx.scene.shape.Rectangle;
+import javafx.scene.shape.Line;
+
+public class FloorTiling extends HouseVisualizationPane {
+    // For now I will only try to implement the hardwood flooring
+    public void loadHardwoodFloor(Stage primaryStage) {
+        Image hardwoodFloor = FlooringTypes.HARDWOOD.getFloor();
+
+        ImagePattern hardwoodPattern = new ImagePattern(hardwoodFloor);
+
+        HouseVisualizationPane.selectedRoomRect.setFill(hardwoodPattern);
+        /*Now i gotta figure out how to actually test if this is working, whether 
+        i need to override the other FloorCovering stuff or not, i'll ask*/ 
+    }
+}
