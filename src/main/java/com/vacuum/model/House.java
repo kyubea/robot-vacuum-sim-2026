@@ -17,6 +17,10 @@ public class House {
     public static final double MAX_TOTAL_AREA = 8000.0; // square feet
 
     public enum FloorCovering {
+        /*
+         * RC - I was unsure whether or not to directly rework this enum in the file, so I have a
+         * reworked version in FlooringType.java with these same values and (mostly) functions
+         */
         HARD("Hard (wood, laminate, tile)", 0.90), LOOP_PILE("Loop Pile (Berber)",
                 0.75), CUT_PILE("Cut Pile", 0.70), FRIEZE("Frieze-cut (California shag)", 0.65);
 

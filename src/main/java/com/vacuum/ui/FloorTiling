@@ -15,7 +15,12 @@ import javafx.scene.paint.ImagePattern;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.Line;
 
-public class FloorTiling extends HouseVisualizationPane {
+/* This is like an alternate file(s) for tiling the floor unless I want 
+or get told to modify FloorCovering things in the other files directly.
+It is generally less complete as I tried to sort of write this myself, I 
+didn't really have anything else write it for me which I may do later. */
+
+public class FloorTiling extends HouseVisualizationPane {   // I wasn't sure if it should extend this file/class or a different one or nothing
     // For now I will only try to implement the hardwood flooring
     public void loadHardwoodFloor(Stage primaryStage) {
         Image hardwoodFloor = FlooringTypes.HARDWOOD.getFloor();
@@ -23,7 +28,7 @@ public class FloorTiling extends HouseVisualizationPane {
         ImagePattern hardwoodPattern = new ImagePattern(hardwoodFloor);
 
         HouseVisualizationPane.selectedRoomRect.setFill(hardwoodPattern);
-        /*Now i gotta figure out how to actually test if this is working, whether 
-        i need to override the other FloorCovering stuff or not, i'll ask*/ 
+        /* I will probably wait to test this until the FlooringType.java (and also technically 
+        House.java) changes get approved or reworked */ 
     }
 }
