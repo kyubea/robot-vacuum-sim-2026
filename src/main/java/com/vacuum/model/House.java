@@ -32,17 +32,8 @@ public class House {
         private final double defaultEfficiency;
 
         FloorCovering(String imageName, String displayName, double defaultEfficiency) {
-            String floorImagePath = "./resources/" + imageName;
-
-            try (InputStream in =
-                    Objects.requireNonNull(getClass().getResourceAsStream(floorImagePath),
-                            "Image resource not found: " + floorImagePath)) {
-                this.userFloor = new Image(in);
-            } catch (IOException e) {
-                throw new IllegalStateException("Error loading image for " + name(), e);
-            } catch (NullPointerException e) {
-                throw new IllegalStateException("Image path is invalid: " + floorImagePath, e);
-            }
+            String path = "/" + imageName;
+            this.userFloor = new Image(getClass().getResourceAsStream(path));
 
             this.displayName = displayName;
             this.defaultEfficiency = defaultEfficiency;
