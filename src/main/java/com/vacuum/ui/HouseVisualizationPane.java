@@ -4,12 +4,14 @@ import com.vacuum.model.*;
 import javafx.geometry.Insets;
 import javafx.scene.Cursor;
 import javafx.scene.control.Label;
+import javafx.scene.image.Image;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
 import javafx.scene.layout.CornerRadii;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.paint.ImagePattern;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.Line;
 import javafx.scene.shape.Circle;
@@ -154,8 +156,9 @@ public class HouseVisualizationPane extends Pane {
             rect.setWidth(room.getWidth() * scale);
             rect.setHeight(room.getHeight() * scale);
 
-            Color fillColor = getFloorCoveringColor(house.getFloorCovering());
-            rect.setFill(fillColor);
+            Image hardwoodFloor = FlooringTypes.HARDWOOD.getFloor();
+            ImagePattern hardwoodPattern = new ImagePattern(hardwoodFloor);
+            rect.setFill(hardwoodPattern);
             rect.setStroke(Color.BLACK);
             rect.setStrokeWidth(2.0);
 
@@ -361,21 +364,6 @@ public class HouseVisualizationPane extends Pane {
             rect.setStrokeWidth(1.5);
 
             this.getChildren().add(rect);
-        }
-    }
-
-    private Color getFloorCoveringColor(House.FloorCovering covering) {
-        switch (covering) {
-            case HARD:
-                return Color.WHEAT;
-            case LOOP_PILE:
-                return Color.SANDYBROWN;
-            case CUT_PILE:
-                return Color.TAN;
-            case FRIEZE:
-                return Color.BURLYWOOD;
-            default:
-                return Color.LIGHTGRAY;
         }
     }
 

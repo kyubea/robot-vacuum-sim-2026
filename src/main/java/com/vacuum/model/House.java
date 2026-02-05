@@ -1,7 +1,11 @@
 package com.vacuum.model;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import javafx.scene.image.Image;
 
 /**
  * Represents the house containing rooms and doors. Houses must be between 200-8000 square feet
@@ -17,17 +21,29 @@ public class House {
     public static final double MAX_TOTAL_AREA = 8000.0; // square feet
 
     public enum FloorCovering {
-        /*
-         * RC - I was unsure whether or not to directly rework this enum in the file, so I have a
-         * reworked version in FlooringType.java with these same values and (mostly) functions
-         */
-        HARD("Hard (wood, laminate, tile)", 0.90), LOOP_PILE("Loop Pile (Berber)",
-                0.75), CUT_PILE("Cut Pile", 0.70), FRIEZE("Frieze-cut (California shag)", 0.65);
+        HARDWOOD("vac_hardwood.png", "Hardwood", 0.90), TILE("vac_tile.png", "Tile",
+                0.90), LAMINATE("vac_laminate.png", "Laminate", 0.90), BERBERPILE(
+                        "vac_berberpile.png", "Berber Pile",
+                        0.75), CUTPILE("vac_cutpile.png", "Cut Pile", 0.70), CALIFORNIASHAG(
+                                "vac_californiashag.png", "California Shag", 0.65);
 
+        private final Image userFloor;
         private final String displayName;
         private final double defaultEfficiency;
 
-        FloorCovering(String displayName, double defaultEfficiency) {
+        FloorCovering(String imageName, String displayName, double defaultEfficiency) {
+            String floorImagePath = "./resources/" + imageName;
+
+            try (InputStream in =
+                    Objects.requireNonNull(getClass().getResourceAsStream(floorImagePath),
+                            "Image resource not found: " + floorImagePath)) {
+                this.userFloor = new Image(in);
+            } catch (IOException e) {
+                throw new IllegalStateException("Error loading image for " + name(), e);
+            } catch (NullPointerException e) {
+                throw new IllegalStateException("Image path is invalid: " + floorImagePath, e);
+            }
+
             this.displayName = displayName;
             this.defaultEfficiency = defaultEfficiency;
         }
@@ -45,7 +61,7 @@ public class House {
         this.rooms = new ArrayList<>();
         this.doors = new ArrayList<>();
         this.obstructions = new ArrayList<>();
-        this.floorCovering = FloorCovering.HARD; // Default
+        this.floorCovering = FloorCovering.HARDWOOD; // Default
     }
 
     /**
