@@ -9,6 +9,10 @@ public class Vacuum {
     private double y;
     private double angle; // rotation angle in degrees
     private Image image;
+    public int moveMode = 0;
+    private double battery = 100;
+
+    private static final double BATTERY_DRAIN_RATE = 5.0; // percentage per second
 
     public Vacuum(double startX, double startY) {
         this.x = startX;
@@ -29,8 +33,20 @@ public class Vacuum {
         this.y += dy;
     }
 
-    // move the vacuum forward based on its local direction
-    public void forward(double distance) {
+    public void reset(float xStart, float yStart, double batteryStart, int moveMode) {
+        this.x = xStart;
+        this.y = yStart;
+        this.angle = 0;
+        this.battery = batteryStart;
+        this.moveMode = moveMode;
+
+    }
+
+
+    // move the vacuum forward based on its local direction and time that has passed since last
+    // frame
+    public void forward(double speed, double deltaTime) {
+        double distance = speed * deltaTime;
         double radians = Math.toRadians(angle);
 
         // Calculate dx and dy based on current orientation
@@ -41,7 +57,8 @@ public class Vacuum {
         this.y += dy;
     }
 
-    public void rotate(double deltaAngle) {
+    public void rotate(double rotationSpeed, double deltaTime) {
+        double deltaAngle = rotationSpeed * deltaTime;
         this.angle += deltaAngle;
         // Keep angle in 0-360 range
         this.angle = this.angle % 360;
@@ -54,6 +71,52 @@ public class Vacuum {
     public void constrainToBounds(double maxWidth, double maxHeight) {
         x = Math.max(0, Math.min(x, maxWidth - image.getWidth()));
         y = Math.max(0, Math.min(y, maxHeight - image.getHeight()));
+    }
+
+    public void update(double deltaTime) {
+        // Drain battery over time
+        battery -= BATTERY_DRAIN_RATE * deltaTime;
+
+        // Ensure battery doesn't go below 0
+        if (battery < 0) {
+            battery = 0;
+        }
+
+        // Only move if battery is available
+        if (battery > 0) {
+            switch (moveMode) {
+                case 2:
+                    alg2(deltaTime);
+                    break;
+                case 3:
+                    alg3(deltaTime);
+                    break;
+                case 4:
+                    alg4(deltaTime);
+                    break;
+                default:
+                    alg1(deltaTime);
+                    break;
+            }
+        }
+
+    }
+
+    private void alg1(double deltaTime) {
+        this.rotate(60.0, deltaTime);
+        this.forward(60.0, deltaTime);
+    }
+
+    private void alg2(double deltaTime) {
+        this.rotate(600.0, deltaTime);
+    }
+
+    private void alg3(double deltaTime) {
+        this.forward(-300.0, deltaTime);
+    }
+
+    private void alg4(double deltaTime) {
+        this.rotate(-300.0, deltaTime);
     }
 
     /**
@@ -89,6 +152,10 @@ public class Vacuum {
 
     public double getAngle() {
         return angle;
+    }
+
+    public double getBattery() {
+        return battery;
     }
 
     public Image getImage() {
