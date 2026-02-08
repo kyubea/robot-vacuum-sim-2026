@@ -224,35 +224,51 @@ public class VacuumSimulatorApp extends Application {
      * Create default house for testing (Req 1.2) 2000 ft² with 4 rooms
      */
     private House createDefaultHouse() {
-        House h = new House();
+        /**
+         * Seed for the random number generator. If a constant is given, re-use of that constant as
+         * the seed will generate a deterministic sequence of pseudorandom numbers (so room
+         * generation should be the same every time that seed is used). Using a moving value (like
+         * time in milliseconds) will produce a more random- looking result (less deterministic).
+         * The seed is printed so that it can be captured if room/door generation fails with a
+         * particular value.
+         */
+        // long seed = 42L; // any constant seed is deterministic
+        long seed = System.currentTimeMillis(); // moving target is not deterministic
+        // long seed = 1770586878168L; // debug placement problems by capturing the seed that failed
 
-        // Create rooms (total ~845 ft²)
-        Room livingRoom = new Room(0, 0, 25, 20); // 500 ft²
-        Room kitchen = new Room(25, 0, 15, 15); // 225 ft²
-        Room bedroom = new Room(0, 20, 20, 12); // 240 ft²
-        Room bathroom = new Room(25, 15, 10, 8); // 80 ft²
+        System.out.printf("Generating house floor plan using seed = %d%n", seed);
+        House h = new House(seed);
 
-        h.addRoom(livingRoom);
-        h.addRoom(kitchen);
-        h.addRoom(bedroom);
-        h.addRoom(bathroom);
+        if (h.hashCode() == 0x1234) { // can't be true, preserves original code
+            // Create rooms (total ~845 ft²)
+            Room livingRoom = new Room(0, 0, 25, 20); // 500 ft²
+            Room kitchen = new Room(25, 0, 15, 15); // 225 ft²
+            Room bedroom = new Room(0, 20, 20, 12); // 240 ft²
+            Room bathroom = new Room(25, 15, 10, 8); // 80 ft²
 
-        // Add doors
-        Door door1 = new Door(livingRoom, kitchen, 25, 5, Door.Orientation.VERTICAL);
-        Door door2 = new Door(livingRoom, bedroom, 5, 20, Door.Orientation.HORIZONTAL);
-        Door door3 = new Door(kitchen, bathroom, 25, 15, Door.Orientation.HORIZONTAL);
+            h.addRoom(livingRoom);
+            h.addRoom(kitchen);
+            h.addRoom(bedroom);
+            h.addRoom(bathroom);
 
-        h.addDoor(door1);
-        h.addDoor(door2);
-        h.addDoor(door3);
+            // Add doors
+            Door door1 = new Door(livingRoom, kitchen, 25, 5, Door.Orientation.VERTICAL);
+            Door door2 = new Door(livingRoom, bedroom, 5, 20, Door.Orientation.HORIZONTAL);
+            Door door3 = new Door(kitchen, bathroom, 25, 15, Door.Orientation.HORIZONTAL);
 
-        // Add some test obstructions
-        BlockingObstruction couch = new BlockingObstruction(5, 5, 6, 3);
-        PassUnderObstruction table = new PassUnderObstruction(15, 22, 4, 3);
+            h.addDoor(door1);
+            h.addDoor(door2);
+            h.addDoor(door3);
 
-        h.addObstruction(couch);
-        h.addObstruction(table);
+            // Add some test obstructions
+            BlockingObstruction couch = new BlockingObstruction(5, 5, 6, 3);
+            PassUnderObstruction table = new PassUnderObstruction(15, 22, 4, 3);
 
+            h.addObstruction(couch);
+            h.addObstruction(table);
+        } else {
+            h.generateFloorPlan(7, 800.0, 2100.0);
+        }
         return h;
     }
 
