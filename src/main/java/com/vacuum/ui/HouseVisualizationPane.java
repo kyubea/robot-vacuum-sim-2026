@@ -156,9 +156,34 @@ public class HouseVisualizationPane extends Pane {
             rect.setWidth(room.getWidth() * scale);
             rect.setHeight(room.getHeight() * scale);
 
+            // Until we implement the "user-chooses-the-flooring type" feature,
+            // just choose within the code by commenting and uncommenting
             Image hardwoodFloor = FlooringTypes.HARDWOOD.getFloor();
-            ImagePattern hardwoodPattern = new ImagePattern(hardwoodFloor);
+            ImagePattern hardwoodPattern = new ImagePattern(hardwoodFloor, 0, 0, 64, 64, false);
             rect.setFill(hardwoodPattern);
+
+            // Image tileFloor = FlooringTypes.TILE.getFloor();
+            // ImagePattern tilePattern = new ImagePattern(tileFloor, 0, 0, 64, 64, false);
+            // rect.setFill(tilePattern);
+
+            // Image laminateFloor = FlooringTypes.LAMINATE.getFloor();
+            // ImagePattern laminatePattern = new ImagePattern(laminateFloor, 0, 0, 64, 64, false);
+            // rect.setFill(laminatePattern);
+
+            // Image berberpileFloor = FlooringTypes.BERBERPILE.getFloor();
+            // ImagePattern berberpilePattern = new ImagePattern(berberpileFloor, 0, 0, 64, 64,
+            // false);
+            // rect.setFill(berberpilePattern);
+
+            // Image cutpileFloor = FlooringTypes.CUTPILE.getFloor();
+            // ImagePattern cutpilePattern = new ImagePattern(cutpileFloor, 0, 0, 64, 64, false);
+            // rect.setFill(cutpilePattern);
+
+            // Image californiashagFloor = FlooringTypes.CALIFORNIASHAG.getFloor();
+            // ImagePattern californiashagPattern = new ImagePattern(californiashagFloor, 0, 0, 64,
+            // 64, false);
+            // rect.setFill(californiashagPattern);
+
             rect.setStroke(Color.BLACK);
             rect.setStrokeWidth(2.0);
 

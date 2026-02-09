@@ -15,6 +15,8 @@ import javafx.scene.paint.ImagePattern;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.Line;
 
+// Can delete this file now, it has been worked into HouseVisualizationPane.java
+
 /* This is like an alternate file(s) for tiling the floor unless I want 
 or get told to modify FloorCovering things in the other files directly.
 It is generally less complete as I tried to sort of write this myself, I 

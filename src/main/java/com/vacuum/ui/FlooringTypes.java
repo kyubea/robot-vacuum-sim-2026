@@ -5,6 +5,8 @@ import java.io.InputStream;
 import java.io.IOException;
 import java.util.Objects;
 
+// Can probably delete this file now, it has been worked into HouseVisualizationPane.java
+
 /*
  * If this gets "approved", then maybe we can move this into the similar enum in House.java,
  * including the additional imports, otherwise I can try to rework this implementation. The Image
