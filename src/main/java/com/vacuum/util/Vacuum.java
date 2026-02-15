@@ -141,7 +141,6 @@ public class Vacuum {
         gc.restore();
     }
 
-    // Getters
     public double getX() {
         return x;
     }
@@ -162,7 +161,6 @@ public class Vacuum {
         return image;
     }
 
-    // Setters
     public void setX(double x) {
         this.x = x;
     }
