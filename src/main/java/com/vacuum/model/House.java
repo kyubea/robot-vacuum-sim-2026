@@ -179,6 +179,7 @@ public class House {
         // Check each room has at least one door (Req 2.4) and minimum area in a single pass
         List<String> connectivityErrors = new ArrayList<>();
         List<String> areaErrors = new ArrayList<>();
+        List<String> overlapErrors = new ArrayList<>();
 
         for (Room room : rooms) {
             if (!room.hasValidConnectivity()) {
@@ -189,9 +190,35 @@ public class House {
                 areaErrors.add(String.format("Room %s area (%.2f ft²) is below minimum (%.2f ft²)",
                         room.getId().substring(0, 8), room.getArea(), Room.MIN_AREA));
             }
+
+            // Check for overlaps with other rooms
+            for (Room otherRoom : rooms) {
+                if (otherRoom == room) {
+                    continue;
+                }
+                if (room.intersects(otherRoom)) {
+                    String overlapMsg = String.format("Room %s overlaps with room %s",
+                            room.getId().substring(0, 8), otherRoom.getId().substring(0, 8));
+                    if (!overlapErrors.contains(overlapMsg)) {
+                        overlapErrors.add(overlapMsg);
+                    }
+                }
+            }
         }
+
+        // Check door validity
+        List<String> doorErrors = new ArrayList<>();
+        for (Door door : doors) {
+            if (!door.isValidPosition()) {
+                doorErrors.add(String.format("Door %s is not on a valid shared wall",
+                        door.getId().substring(0, 8)));
+            }
+        }
+
         errors.addAll(connectivityErrors);
         errors.addAll(areaErrors);
+        errors.addAll(overlapErrors);
+        errors.addAll(doorErrors);
         return errors;
     }
 

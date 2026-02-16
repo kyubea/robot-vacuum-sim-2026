@@ -8,8 +8,8 @@ public class Door {
     private final String id;
     private final Room room1;
     private final Room room2;
-    private final double x; // Door position X
-    private final double y; // Door position Y
+    private double x; // Door position X (mutable for dragging)
+    private double y; // Door position Y (mutable for dragging)
     private final double width; // Door width in feet
     private Orientation orientation;
 
@@ -158,6 +158,14 @@ public class Door {
 
     public double getY() {
         return y;
+    }
+
+    /**
+     * Set the door position (for dragging along wall)
+     */
+    public void setPosition(double x, double y) {
+        this.x = x;
+        this.y = y;
     }
 
     public double getWidth() {

@@ -7,6 +7,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
@@ -25,13 +26,18 @@ public class VacuumSimulatorApp extends Application {
     private Label statusLabel;
     private Label zoomLabel;
 
+    private VBox inspectorPanel;
+    private BorderPane root;
+    private boolean inspectorVisible = true;
+    private Room currentSelectedRoom = null;
+
     @Override
     public void start(Stage primaryStage) {
         // Create default house (Req 1.2: valid default state)
         house = createDefaultHouse();
 
         // Create UI components
-        BorderPane root = new BorderPane();
+        root = new BorderPane();
 
         // Top: Menu bar
         MenuBar menuBar = createMenuBar(primaryStage);
@@ -40,6 +46,21 @@ public class VacuumSimulatorApp extends Application {
         // Center: scrollable, pannable visualization
         visualizationPane = new HouseVisualizationPane();
         visualizationPane.setHouse(house);
+
+        // Setup selection listener
+        visualizationPane.setOnRoomSelected(room -> {
+            currentSelectedRoom = room;
+            updateInspector();
+        });
+
+        visualizationPane.setOnRoomDeselected(() -> {
+            currentSelectedRoom = null;
+            updateInspector();
+        });
+
+        visualizationPane.setOnValidationChange(() -> {
+            updateInspector();
+        });
 
         scrollPane = new ScrollPane(visualizationPane);
         scrollPane.setPannable(true); // Enable panning by dragging
@@ -65,9 +86,9 @@ public class VacuumSimulatorApp extends Application {
 
         root.setCenter(scrollPane);
 
-        // Right: info panel
-        VBox infoPanel = createInfoPanel();
-        root.setRight(infoPanel);
+        // Right: inspector panel
+        inspectorPanel = createInspectorPanel();
+        root.setRight(inspectorPanel);
 
         // Bottom: status bar
         statusLabel = new Label("Ready");
@@ -141,6 +162,8 @@ public class VacuumSimulatorApp extends Application {
         MenuItem zoomOutItem = new MenuItem("Zoom Out");
         MenuItem resetZoomItem = new MenuItem("Reset Zoom");
         MenuItem fitToWindowItem = new MenuItem("Fit to Window");
+        CheckMenuItem toggleInspectorItem = new CheckMenuItem("Show Inspector");
+        toggleInspectorItem.setSelected(true);
 
         zoomInItem.setOnAction(e -> zoom(1.2));
         zoomOutItem.setOnAction(e -> zoom(0.8));
@@ -150,9 +173,13 @@ public class VacuumSimulatorApp extends Application {
             updateStatus("Zoom reset to 100%");
         });
         fitToWindowItem.setDisable(true); // TODO: implement
+        toggleInspectorItem.setOnAction(e -> {
+            inspectorVisible = toggleInspectorItem.isSelected();
+            toggleInspector();
+        });
 
         viewMenu.getItems().addAll(zoomInItem, zoomOutItem, resetZoomItem, new SeparatorMenuItem(),
-                fitToWindowItem);
+                fitToWindowItem, new SeparatorMenuItem(), toggleInspectorItem);
 
         // Simulation menu
         Menu simMenu = new Menu("Simulation");
@@ -216,7 +243,7 @@ public class VacuumSimulatorApp extends Application {
         alert.setTitle("About");
         alert.setHeaderText("Robot Vacuum Simulator");
         alert.setContentText(
-                "Version 1.0\nBuilt with JavaFX\n\nTeam: Beatrice (Tech Lead), Ian, Malachi, Ray");
+                "Version 1.0\nBuilt with JavaFX\n\nTeam: Beatrice, Ian, Malachi, Ray, Vo");
         alert.showAndWait();
     }
 
@@ -257,61 +284,253 @@ public class VacuumSimulatorApp extends Application {
     }
 
     /**
-     * Create info panel showing house details
+     * Create inspector panel
      */
-    private VBox createInfoPanel() {
+    private VBox createInspectorPanel() {
         VBox panel = new VBox(10);
-        panel.setPadding(new Insets(20));
+        panel.setPadding(new Insets(15));
         panel.setStyle(
                 "-fx-background-color: #e8e8e8; -fx-border-color: #c0c0c0; -fx-border-width: 0 0 0 1;");
-        panel.setPrefWidth(250);
+        panel.setPrefWidth(280);
+        panel.setMinWidth(280);
+        panel.setMaxWidth(280);
 
-        // House info
-        Label titleLabel = new Label("House Information");
-        titleLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+        // Will be populated by updateInspector()
+        return panel;
+    }
 
-        Label roomsLabel = new Label("Rooms: " + house.getRooms().size());
-        Label doorsLabel = new Label("Doors: " + house.getDoors().size());
-        Label obstLabel = new Label("Obstructions: " + house.getObstructions().size());
-        Label areaLabel = new Label(String.format("Total Area: %.1f ft²", house.getTotalArea()));
-        Label cleanableLabel =
-                new Label(String.format("Cleanable: %.1f ft²", house.getCleanableArea()));
-        Label coveringLabel = new Label("Floor: " + house.getFloorCovering().name());
-        Label validLabel = new Label("Valid: " + (house.isValid() ? "Yes" : "No"));
+    /**
+     * Update inspector panel content based on selection
+     */
+    private void updateInspector() {
+        inspectorPanel.getChildren().clear();
 
-        if (house.isValid()) {
-            validLabel.setStyle("-fx-text-fill: green; -fx-font-weight: bold;");
+        // Title
+        Label titleLabel = new Label("Inspector");
+        titleLabel.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+        inspectorPanel.getChildren().add(titleLabel);
+        inspectorPanel.getChildren().add(new Separator());
+
+        if (currentSelectedRoom == null) {
+            // No selection - show general info
+            Label noSelectionLabel = new Label("No room selected");
+            noSelectionLabel.setStyle("-fx-text-fill: #666; -fx-font-style: italic;");
+            inspectorPanel.getChildren().add(noSelectionLabel);
+
+            inspectorPanel.getChildren().add(new Separator());
+
+            // House summary
+            Label houseTitleLabel = new Label("House Summary");
+            houseTitleLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+            inspectorPanel.getChildren().add(houseTitleLabel);
+
+            GridPane houseGrid = new GridPane();
+            houseGrid.setHgap(10);
+            houseGrid.setVgap(8);
+            houseGrid.setPadding(new Insets(10, 0, 0, 0));
+
+            addGridRow(houseGrid, 0, "Rooms:", String.valueOf(house.getRooms().size()));
+            addGridRow(houseGrid, 1, "Doors:", String.valueOf(house.getDoors().size()));
+            addGridRow(houseGrid, 2, "Obstructions:",
+                    String.valueOf(house.getObstructions().size()));
+            addGridRow(houseGrid, 3, "Total Area:",
+                    String.format("%.1f ft²", house.getTotalArea()));
+            addGridRow(houseGrid, 4, "Cleanable:",
+                    String.format("%.1f ft²", house.getCleanableArea()));
+            addGridRow(houseGrid, 5, "Floor Type:", house.getFloorCovering().name());
+
+            inspectorPanel.getChildren().add(houseGrid);
+
+            // Validation status
+            Label validLabel =
+                    new Label(house.isValid() ? "Valid Configuration" : "Invalid Configuration");
+            validLabel.setStyle(house.isValid()
+                    ? "-fx-text-fill: green; -fx-font-weight: bold; -fx-padding: 10 0 0 0;"
+                    : "-fx-text-fill: red; -fx-font-weight: bold; -fx-padding: 10 0 0 0;");
+            inspectorPanel.getChildren().add(validLabel);
+
+            // Show validation errors if any
+            if (!house.isValid()) {
+                java.util.List<String> errors = house.validate();
+                if (!errors.isEmpty()) {
+                    Label errorsLabel = new Label("Issues:");
+                    errorsLabel.setStyle("-fx-font-weight: bold; -fx-padding: 10 0 5 0;");
+                    inspectorPanel.getChildren().add(errorsLabel);
+
+                    VBox errorBox = new VBox(3);
+                    errorBox.setPadding(new Insets(0, 0, 0, 10));
+                    for (String error : errors) {
+                        Label errorItem = new Label("- " + error);
+                        errorItem.setStyle("-fx-text-fill: #c00; -fx-font-size: 11px;");
+                        errorItem.setWrapText(true);
+                        errorBox.getChildren().add(errorItem);
+                    }
+                    inspectorPanel.getChildren().add(errorBox);
+                }
+            }
+
         } else {
-            validLabel.setStyle("-fx-text-fill: red; -fx-font-weight: bold;");
+            // Room selected - show detailed info
+            Label roomTitleLabel = new Label("Room Details");
+            roomTitleLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+            inspectorPanel.getChildren().add(roomTitleLabel);
+
+            // Room ID (shortened)
+            Label idLabel = new Label("ID: " + currentSelectedRoom.getId().substring(0, 8) + "...");
+            idLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #666;");
+            inspectorPanel.getChildren().add(idLabel);
+
+            // Room properties grid
+            GridPane roomGrid = new GridPane();
+            roomGrid.setHgap(10);
+            roomGrid.setVgap(8);
+            roomGrid.setPadding(new Insets(10, 0, 0, 0));
+
+            addGridRow(roomGrid, 0, "Position:", String.format("(%.1f, %.1f)",
+                    currentSelectedRoom.getX(), currentSelectedRoom.getY()));
+            addGridRow(roomGrid, 1, "Width:",
+                    String.format("%.1f ft", currentSelectedRoom.getWidth()));
+            addGridRow(roomGrid, 2, "Height:",
+                    String.format("%.1f ft", currentSelectedRoom.getHeight()));
+            addGridRow(roomGrid, 3, "Area:",
+                    String.format("%.1f ft²", currentSelectedRoom.getArea()));
+            addGridRow(roomGrid, 4, "Doors:",
+                    String.valueOf(currentSelectedRoom.getDoors().size()));
+
+            inspectorPanel.getChildren().add(roomGrid);
+
+            // Room validation
+            inspectorPanel.getChildren().add(new Separator());
+            Label validationLabel = new Label("Validation");
+            validationLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+            inspectorPanel.getChildren().add(validationLabel);
+
+            boolean validConnectivity = currentSelectedRoom.hasValidConnectivity();
+            boolean validArea = currentSelectedRoom.getArea() >= Room.MIN_AREA;
+
+            // Check for overlaps
+            boolean hasOverlap = false;
+            for (Room otherRoom : house.getRooms()) {
+                if (otherRoom != currentSelectedRoom && currentSelectedRoom.intersects(otherRoom)) {
+                    hasOverlap = true;
+                    break;
+                }
+            }
+
+            boolean isRoomValid = validConnectivity && validArea && !hasOverlap;
+
+            Label connectivityLabel =
+                    new Label(validConnectivity ? "Has door connections" : "No door connections");
+            connectivityLabel
+                    .setStyle(validConnectivity ? "-fx-text-fill: green;" : "-fx-text-fill: red;");
+
+            Label areaLabel = new Label(validArea ? "Meets minimum area" : "Below minimum area");
+            areaLabel.setStyle(validArea ? "-fx-text-fill: green;" : "-fx-text-fill: red;");
+
+            Label overlapLabel = new Label(hasOverlap ? "Overlaps with other room" : "No overlaps");
+            overlapLabel.setStyle(hasOverlap ? "-fx-text-fill: red;" : "-fx-text-fill: green;");
+
+            inspectorPanel.getChildren().addAll(connectivityLabel, areaLabel, overlapLabel);
+
+            // Show requirements if room is invalid
+            if (!isRoomValid) {
+                Label requirementsLabel = new Label("Requirements:");
+                requirementsLabel.setStyle("-fx-font-weight: bold; -fx-padding: 10 0 5 0;");
+                inspectorPanel.getChildren().add(requirementsLabel);
+
+                VBox reqBox = new VBox(3);
+                reqBox.setPadding(new Insets(0, 0, 0, 10));
+
+                if (!validConnectivity) {
+                    Label req = new Label("- Add at least one door connection");
+                    req.setStyle("-fx-text-fill: #c00; -fx-font-size: 11px;");
+                    reqBox.getChildren().add(req);
+                }
+                if (!validArea) {
+                    Label req = new Label(
+                            String.format("- Increase area to %.1f ft² minimum", Room.MIN_AREA));
+                    req.setStyle("-fx-text-fill: #c00; -fx-font-size: 11px;");
+                    reqBox.getChildren().add(req);
+                }
+                if (hasOverlap) {
+                    Label req = new Label("- Move or resize room to eliminate overlap");
+                    req.setStyle("-fx-text-fill: #c00; -fx-font-size: 11px;");
+                    reqBox.getChildren().add(req);
+                }
+
+                inspectorPanel.getChildren().add(reqBox);
+            }
+
+            // Actions
+            inspectorPanel.getChildren().add(new Separator());
+            Label actionsLabel = new Label("Actions");
+            actionsLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+            inspectorPanel.getChildren().add(actionsLabel);
+
+            Button deselectButton = new Button("Deselect Room");
+            deselectButton.setPrefWidth(240);
+            deselectButton.setOnAction(e -> {
+                visualizationPane.deselectRoom();
+            });
+
+            Button deleteButton = new Button("Delete Room");
+            deleteButton.setPrefWidth(240);
+            deleteButton.setStyle("-fx-background-color: #d32f2f; -fx-text-fill: white;");
+            deleteButton.setOnAction(e -> {
+                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+                confirm.setTitle("Confirm Delete");
+                confirm.setHeaderText("Delete Room?");
+                confirm.setContentText("This will remove the room and all its connections.");
+                confirm.showAndWait().ifPresent(response -> {
+                    if (response == ButtonType.OK) {
+                        house.removeRoom(currentSelectedRoom);
+                        visualizationPane.deselectRoom();
+                        visualizationPane.render();
+                        updateStatus("Room deleted");
+                    }
+                });
+            });
+
+            inspectorPanel.getChildren().addAll(deselectButton, deleteButton);
         }
 
-        // Zoom info
+        // Zoom info at bottom
+        inspectorPanel.getChildren().add(new Separator());
         zoomLabel = new Label("Zoom: 100%");
+        zoomLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #666;");
+        inspectorPanel.getChildren().add(zoomLabel);
+        updateZoomLabel();
 
-        // View controls
-        Label viewLabel = new Label("View Controls");
-        viewLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
-        Label tipLabel =
-                new Label("• Drag to pan\n• Ctrl+Scroll to zoom\n• Hover rooms for highlight");
-        tipLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #666;");
+        // Tips
+        Label tipLabel = new Label("Tip: Click a room to select it\nDrag handles to resize");
+        tipLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #888; -fx-padding: 10 0 0 0;");
+        inspectorPanel.getChildren().add(tipLabel);
+    }
 
-        // Placeholder buttons (will implement later)
-        Button startButton = new Button("Start Simulation");
-        Button stopButton = new Button("Stop Simulation");
-        startButton.setPrefWidth(200);
-        stopButton.setPrefWidth(200);
-        startButton.setDisable(true); // Not implemented yet
-        stopButton.setDisable(true);
+    /**
+     * Helper to add a row to GridPane
+     */
+    private void addGridRow(GridPane grid, int row, String label, String value) {
+        Label labelNode = new Label(label);
+        labelNode.setStyle("-fx-font-weight: bold;");
+        Label valueNode = new Label(value);
+        valueNode.setStyle("-fx-text-fill: #333;");
+        grid.add(labelNode, 0, row);
+        grid.add(valueNode, 1, row);
+    }
 
-        Separator sep1 = new Separator();
-        Separator sep2 = new Separator();
-        Separator sep3 = new Separator();
-
-        panel.getChildren().addAll(titleLabel, roomsLabel, doorsLabel, obstLabel, areaLabel,
-                cleanableLabel, coveringLabel, validLabel, sep1, zoomLabel, sep2, viewLabel,
-                tipLabel, sep3, startButton, stopButton);
-
-        return panel;
+    /**
+     * Toggle inspector panel visibility
+     */
+    private void toggleInspector() {
+        if (inspectorVisible) {
+            root.setRight(inspectorPanel);
+            updateInspector();
+            updateStatus("Inspector shown");
+        } else {
+            root.setRight(null);
+            updateStatus("Inspector hidden");
+        }
     }
 
     public static void main(String[] args) {
