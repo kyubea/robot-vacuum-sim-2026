@@ -1,7 +1,10 @@
 package com.vacuum.ui;
 
 import com.vacuum.model.*;
+import com.vacuum.util.Vacuum;
+import com.vacuum.util.simulationTimer;
 import javafx.application.Application;
+import javafx.event.ActionEvent;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
@@ -9,6 +12,8 @@ import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import javafx.event.EventHandler;
+
 
 /**
  * Main JavaFX application for the vacuum simulator Req 1.1: Standalone Windows application
@@ -25,10 +30,18 @@ public class VacuumSimulatorApp extends Application {
     private Label statusLabel;
     private Label zoomLabel;
 
+    private Vacuum vacuum;
+    private simulationTimer simTimer;
+
     @Override
     public void start(Stage primaryStage) {
         // Create default house (Req 1.2: valid default state)
         house = createDefaultHouse();
+
+
+        Room startPos = house.getRooms().get(0);
+        vacuum = new Vacuum(startPos.getX() + startPos.getWidth() / 2,
+                startPos.getY() + startPos.getHeight() / 2, house.getRooms());
 
         // Create UI components
         BorderPane root = new BorderPane();
@@ -39,7 +52,11 @@ public class VacuumSimulatorApp extends Application {
 
         // Center: scrollable, pannable visualization
         visualizationPane = new HouseVisualizationPane();
+        visualizationPane.setVacuum(vacuum);
         visualizationPane.setHouse(house);
+        simTimer = new simulationTimer(vacuum, visualizationPane);
+
+
 
         scrollPane = new ScrollPane(visualizationPane);
         scrollPane.setPannable(true); // Enable panning by dragging
@@ -68,6 +85,8 @@ public class VacuumSimulatorApp extends Application {
         // Right: info panel
         VBox infoPanel = createInfoPanel();
         root.setRight(infoPanel);
+
+
 
         // Bottom: status bar
         statusLabel = new Label("Ready");
@@ -312,12 +331,25 @@ public class VacuumSimulatorApp extends Application {
         tipLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #666;");
 
         // Placeholder buttons (will implement later)
-        Button startButton = new Button("Start Simulation");
-        Button stopButton = new Button("Stop Simulation");
-        startButton.setPrefWidth(200);
-        stopButton.setPrefWidth(200);
-        startButton.setDisable(true); // Not implemented yet
-        stopButton.setDisable(true);
+        Button simToggleButton = new Button("Start Simulation");
+        simToggleButton.setPrefWidth(200);
+
+
+
+        EventHandler<ActionEvent> toggleSim = new EventHandler<ActionEvent>() {
+            public void handle(ActionEvent e) {
+                if (simTimer.isActive()) {
+                    simToggleButton.setText("Start simulation");
+                } else {
+                    simToggleButton.setText("Stop simulation");
+                }
+                simTimer.toggleSimTimer();
+
+            }
+        };
+        simToggleButton.setOnAction(toggleSim);
+
+
 
         Separator sep1 = new Separator();
         Separator sep2 = new Separator();
@@ -325,7 +357,7 @@ public class VacuumSimulatorApp extends Application {
 
         panel.getChildren().addAll(titleLabel, roomsLabel, doorsLabel, obstLabel, areaLabel,
                 cleanableLabel, coveringLabel, validLabel, sep1, zoomLabel, sep2, viewLabel,
-                tipLabel, sep3, startButton, stopButton);
+                tipLabel, sep3, simToggleButton);
 
         return panel;
     }

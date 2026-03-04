@@ -1,6 +1,9 @@
 package com.vacuum.ui;
 
+import java.io.FileInputStream;
+import java.io.InputStream;
 import com.vacuum.model.*;
+import com.vacuum.util.Vacuum;
 import javafx.geometry.Insets;
 import javafx.scene.Cursor;
 import javafx.scene.control.Label;
@@ -13,6 +16,8 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.Line;
 import javafx.scene.shape.Circle;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 
 /**
  * Visualization pane that renders a House with rooms, doors, and obstructions
@@ -35,6 +40,7 @@ public class HouseVisualizationPane extends Pane {
     private double dragStartX;
     private double dragStartY;
     private double originalX, originalY, originalWidth, originalHeight;
+    public Vacuum vacuum;
 
     public HouseVisualizationPane() {
         this.setStyle("-fx-background-color: #f0f0f0;");
@@ -113,6 +119,10 @@ public class HouseVisualizationPane extends Pane {
         render();
     }
 
+    public void setVacuum(Vacuum vacuum) {
+        this.vacuum = vacuum;
+    }
+
     public void render() {
         this.getChildren().retainAll(hoverTooltip, leftHandle, rightHandle, topHandle,
                 bottomHandle);
@@ -133,6 +143,7 @@ public class HouseVisualizationPane extends Pane {
         renderRooms();
         renderDoors();
         renderObstructions();
+        renderVacuum();
 
         if (selectedRoomModel != null) {
             updateSelectedRoom();
@@ -143,6 +154,21 @@ public class HouseVisualizationPane extends Pane {
         rightHandle.toFront();
         topHandle.toFront();
         bottomHandle.toFront();
+    }
+
+    private void renderVacuum() {
+        Image vImage = new Image(getClass().getResourceAsStream("/vacuumRotated.png"));
+        ImageView vImageView = new ImageView();
+
+        double screenX = offsetX + vacuum.getX() * scale;
+        double screenY = offsetY + vacuum.getY() * scale;
+        vImageView.setImage(vImage);
+
+
+        vImageView.relocate(screenX - vImage.getWidth() / 2, screenY - vImage.getHeight() / 2);
+
+        vImageView.setRotate(this.vacuum.getOrientation());
+        this.getChildren().add(vImageView);
     }
 
     private void renderRooms() {
