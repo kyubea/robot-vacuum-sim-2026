@@ -5,11 +5,13 @@ package com.vacuum.model;
  */
 
 public class Door {
+    public static final double DEFAULT_WIDTH = 3.0; // feet
+
     private final String id;
     private final Room room1;
     private final Room room2;
-    private final double x; // Door position X
-    private final double y; // Door position Y
+    private double x; // Door position X (can be changed)
+    private double y; // Door position Y (can be changed)
     private final double width; // Door width in feet
     private Orientation orientation;
 
@@ -17,8 +19,6 @@ public class Door {
         HORIZONTAL, // Door on horizontal wall (top/bottom)
         VERTICAL // Door on vertical wall (left/right)
     }
-
-    public static final double DEFAULT_WIDTH = 3.0; // feet
 
     public Door(Room room1, Room room2, double x, double y, Orientation orientation) {
         this(room1, room2, x, y, orientation, DEFAULT_WIDTH);
@@ -46,6 +46,14 @@ public class Door {
         // Register door with both rooms
         room1.addDoor(this);
         room2.addDoor(this);
+    }
+
+    /**
+     * Move door to given position; other properties unchanged.
+     */
+    public void setPosition(double x, double y) {
+        this.x = x;
+        this.y = y;
     }
 
     /**
@@ -170,8 +178,8 @@ public class Door {
 
     @Override
     public String toString() {
-        return String.format("Door[id=%s, pos=(%.1f,%.1f), width=%.1f, %s]", id.substring(0, 8), x,
-                y, width, orientation);
+        return String.format("Door(%s ↔ %s  @(%.1f,%.1f) w=%.1f %s)", room1.getId(), room2.getId(),
+                x, y, width, orientation == Orientation.HORIZONTAL ? "horz" : "vert");
     }
 
     @Override
