@@ -1,0 +1,36 @@
+package com.vacuum.ui;
+
+import com.vacuum.model.*;
+import javafx.geometry.Insets;
+import javafx.scene.Cursor;
+import javafx.scene.control.Label;
+import javafx.scene.layout.Background;
+import javafx.scene.layout.BackgroundFill;
+import javafx.scene.layout.CornerRadii;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.paint.ImagePattern;
+import javafx.scene.shape.Rectangle;
+import javafx.scene.shape.Line;
+
+// Can delete this file now, it has been worked into HouseVisualizationPane.java
+
+/* This is like an alternate file(s) for tiling the floor unless I want 
+or get told to modify FloorCovering things in the other files directly.
+It is generally less complete as I tried to sort of write this myself, I 
+didn't really have anything else write it for me which I may do later. */
+
+public class FloorTiling extends HouseVisualizationPane {   // I wasn't sure if it should extend this file/class or a different one or nothing
+    // For now I will only try to implement the hardwood flooring
+    public void loadHardwoodFloor(Stage primaryStage) {
+        Image hardwoodFloor = FlooringTypes.HARDWOOD.getFloor();
+
+        ImagePattern hardwoodPattern = new ImagePattern(hardwoodFloor);
+
+        HouseVisualizationPane.selectedRoomRect.setFill(hardwoodPattern);
+        /* I will probably wait to test this until the FlooringType.java (and also technically 
+        House.java) changes get approved or reworked */ 
+    }
+}
