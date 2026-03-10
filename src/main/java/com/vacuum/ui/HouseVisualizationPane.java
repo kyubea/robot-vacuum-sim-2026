@@ -366,13 +366,17 @@ public class HouseVisualizationPane extends Pane {
 
     private Color getFloorCoveringColor(House.FloorCovering covering) {
         switch (covering) {
-            case HARD:
+            case HARDWOOD:
                 return Color.WHEAT;
-            case LOOP_PILE:
+            case LAMINATE:
+                return Color.LIGHTGRAY;
+            case TILE:
+                return Color.WHITE;
+            case BERBERPILE:
                 return Color.SANDYBROWN;
-            case CUT_PILE:
+            case CUTPILE:
                 return Color.TAN;
-            case FRIEZE:
+            case CALIFORNIASHAG:
                 return Color.BURLYWOOD;
             default:
                 return Color.LIGHTGRAY;

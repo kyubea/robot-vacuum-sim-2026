@@ -40,8 +40,9 @@ public class House {
     public static final double MAX_TOTAL_AREA = 8000.0; // square feet
 
     public enum FloorCovering {
-        HARD("Hard (wood, laminate, tile)", 0.90), LOOP_PILE("Loop Pile (Berber)",
-                0.75), CUT_PILE("Cut Pile", 0.70), FRIEZE("Frieze-cut (California shag)", 0.65);
+        HARDWOOD("Hardwood", 0.90), LAMINATE("Laminate", 0.90), TILE("Tile", 0.90), BERBERPILE(
+                "Berber Pile",
+                0.75), CUTPILE("Cut Pile", 0.70), CALIFORNIASHAG("California Shag)", 0.65);
 
         private final String displayName;
         private final double defaultEfficiency;
@@ -64,7 +65,7 @@ public class House {
         this.rooms = new ArrayList<>();
         this.doors = new ArrayList<>();
         this.obstructions = new ArrayList<>();
-        this.floorCovering = FloorCovering.HARD; // Default
+        this.floorCovering = FloorCovering.HARDWOOD; // Default
         this.seed = seed;
         this.random = new Random(seed);
     }
