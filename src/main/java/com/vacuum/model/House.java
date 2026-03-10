@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Random;
+import java.util.Objects;
+import javafx.scene.image.Image;
 
 /**
  * Represents the house containing rooms and doors. Houses must be between 200-8000 square feet
@@ -40,14 +42,20 @@ public class House {
     public static final double MAX_TOTAL_AREA = 8000.0; // square feet
 
     public enum FloorCovering {
-        HARDWOOD("Hardwood", 0.90), LAMINATE("Laminate", 0.90), TILE("Tile", 0.90), BERBERPILE(
-                "Berber Pile",
-                0.75), CUTPILE("Cut Pile", 0.70), CALIFORNIASHAG("California Shag)", 0.65);
+        HARDWOOD("vac_hardwood.png", "Hardwood", 0.90), TILE("vac_tile.png", "Tile",
+                0.90), LAMINATE("vac_laminate.png", "Laminate", 0.90), BERBERPILE(
+                        "vac_berberpile.png", "Berber Pile",
+                        0.75), CUTPILE("vac_cutpile.png", "Cut Pile", 0.70), CALIFORNIASHAG(
+                                "vac_californiashag.png", "California Shag", 0.65);
 
+        private final Image userFloor;
         private final String displayName;
         private final double defaultEfficiency;
 
-        FloorCovering(String displayName, double defaultEfficiency) {
+        FloorCovering(String imageName, String displayName, double defaultEfficiency) {
+            String path = "/" + imageName;
+            this.userFloor = new Image(getClass().getResourceAsStream(path));
+
             this.displayName = displayName;
             this.defaultEfficiency = defaultEfficiency;
         }
