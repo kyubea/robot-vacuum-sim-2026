@@ -2,9 +2,9 @@ package com.vacuum.ui;
 
 import com.vacuum.model.*;
 import javafx.geometry.Insets;
+import javafx.geometry.Point2D;
 import javafx.scene.Cursor;
 import javafx.scene.control.Label;
-import javafx.scene.image.Image;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
 import javafx.scene.layout.CornerRadii;
@@ -15,11 +15,17 @@ import javafx.scene.paint.ImagePattern;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.Line;
 import javafx.scene.shape.Circle;
+import javafx.scene.shape.StrokeLineCap;
 
 /**
  * Visualization pane that renders a House with rooms, doors, and obstructions
  */
 public class HouseVisualizationPane extends Pane {
+
+    private static final Color WALL_COLOR = Color.web("#2b353d");
+    private static final Color HOVER_COLOR = Color.web("#6a8ea3");
+    private static final Color SELECTION_COLOR = Color.web("#0f7b82");
+    private static final Color DOOR_COLOR = Color.web("#2c8c50");
 
     private House house;
     private double scale = 10.0;
@@ -39,13 +45,13 @@ public class HouseVisualizationPane extends Pane {
     private double originalX, originalY, originalWidth, originalHeight;
 
     public HouseVisualizationPane() {
-        this.setStyle("-fx-background-color: #f0f0f0;");
+        this.getStyleClass().add("house-visualization-pane");
 
         hoverTooltip = new VBox(5);
         hoverTooltip.setPadding(new Insets(8));
-        hoverTooltip.setBackground(new Background(new BackgroundFill(Color.rgb(255, 255, 220, 0.95),
-                new CornerRadii(5), Insets.EMPTY)));
-        hoverTooltip.setStyle("-fx-border-color: #888; -fx-border-width: 1; -fx-border-radius: 5;");
+        hoverTooltip.setBackground(new Background(new BackgroundFill(Color.rgb(243, 246, 248, 0.95),
+                new CornerRadii(8), Insets.EMPTY)));
+        hoverTooltip.getStyleClass().add("room-tooltip");
         hoverTooltip.setVisible(false);
         hoverTooltip.setMouseTransparent(true);
         this.getChildren().add(hoverTooltip);
@@ -59,12 +65,19 @@ public class HouseVisualizationPane extends Pane {
         setupResizeHandle(rightHandle, "right", Cursor.E_RESIZE);
         setupResizeHandle(topHandle, "top", Cursor.N_RESIZE);
         setupResizeHandle(bottomHandle, "bottom", Cursor.S_RESIZE);
+
+        setOnMouseClicked(e -> {
+            if (e.getTarget() == this) {
+                deselectRoom();
+                hoverTooltip.setVisible(false);
+            }
+        });
     }
 
     private Circle createResizeHandle() {
         Circle handle = new Circle(6);
         handle.setFill(Color.WHITE);
-        handle.setStroke(Color.BLUE);
+        handle.setStroke(SELECTION_COLOR);
         handle.setStrokeWidth(2);
         handle.setVisible(false);
         this.getChildren().add(handle);
@@ -75,7 +88,7 @@ public class HouseVisualizationPane extends Pane {
         handle.setCursor(cursor);
 
         handle.setOnMouseEntered(e -> {
-            handle.setFill(Color.LIGHTBLUE);
+            handle.setFill(Color.web("#d5eef0"));
             handle.setRadius(7);
         });
 
@@ -132,12 +145,19 @@ public class HouseVisualizationPane extends Pane {
 
         this.setPrefSize((maxX * scale) + offsetX * 2 + 200, (maxY * scale) + offsetY * 2 + 200);
 
+        renderFloorBoundary(maxX, maxY);
+
+        selectedRoomRect = null;
         renderRooms();
-        renderDoors();
         renderObstructions();
+        renderDoors();
 
         if (selectedRoomModel != null) {
-            updateSelectedRoom();
+            if (selectedRoomRect != null) {
+                updateSelectedRoom();
+            } else {
+                deselectRoom();
+            }
         }
 
         hoverTooltip.toFront();
@@ -147,7 +167,42 @@ public class HouseVisualizationPane extends Pane {
         bottomHandle.toFront();
     }
 
+    private void renderFloorBoundary(double maxX, double maxY) {
+        double planWidth = maxX * scale;
+        double planHeight = maxY * scale;
+
+        Rectangle frame =
+                new Rectangle(offsetX - 20, offsetY - 20, planWidth + 40, planHeight + 40);
+        frame.setArcWidth(18);
+        frame.setArcHeight(18);
+        frame.setFill(Color.web("#f7f8f9"));
+        frame.setStroke(Color.web("#c3ced4"));
+        frame.setStrokeWidth(1.6);
+        frame.setMouseTransparent(true);
+
+        Rectangle workSurface = new Rectangle(offsetX, offsetY, planWidth, planHeight);
+        workSurface.setFill(Color.web("#fdfdfd"));
+        workSurface.setStroke(Color.web("#d8dfe3"));
+        workSurface.setStrokeWidth(1.2);
+        workSurface.setMouseTransparent(true);
+
+        this.getChildren().addAll(frame, workSurface);
+    }
+
+    private ImagePattern getCurrentFloorPattern() {
+        House.FloorCovering covering = house.getFloorCovering();
+        FlooringTypes floorType;
+        try {
+            floorType = FlooringTypes.valueOf(covering.name());
+        } catch (IllegalArgumentException ex) {
+            floorType = FlooringTypes.HARDWOOD;
+        }
+        return new ImagePattern(floorType.getFloor(), 0, 0, 64, 64, false);
+    }
+
     private void renderRooms() {
+        ImagePattern floorPattern = getCurrentFloorPattern();
+
         for (Room room : house.getRooms()) {
             Rectangle rect = new Rectangle();
 
@@ -156,49 +211,23 @@ public class HouseVisualizationPane extends Pane {
             rect.setWidth(room.getWidth() * scale);
             rect.setHeight(room.getHeight() * scale);
 
-            // Until we implement the "user-chooses-the-flooring type" feature,
-            // just choose within the code by commenting and uncommenting
-            Image hardwoodFloor = FlooringTypes.HARDWOOD.getFloor();
-            ImagePattern hardwoodPattern = new ImagePattern(hardwoodFloor, 0, 0, 64, 64, false);
-            rect.setFill(hardwoodPattern);
+            rect.setFill(floorPattern);
 
-            // Image tileFloor = FlooringTypes.TILE.getFloor();
-            // ImagePattern tilePattern = new ImagePattern(tileFloor, 0, 0, 64, 64, false);
-            // rect.setFill(tilePattern);
-
-            // Image laminateFloor = FlooringTypes.LAMINATE.getFloor();
-            // ImagePattern laminatePattern = new ImagePattern(laminateFloor, 0, 0, 64, 64, false);
-            // rect.setFill(laminatePattern);
-
-            // Image berberpileFloor = FlooringTypes.BERBERPILE.getFloor();
-            // ImagePattern berberpilePattern = new ImagePattern(berberpileFloor, 0, 0, 64, 64,
-            // false);
-            // rect.setFill(berberpilePattern);
-
-            // Image cutpileFloor = FlooringTypes.CUTPILE.getFloor();
-            // ImagePattern cutpilePattern = new ImagePattern(cutpileFloor, 0, 0, 64, 64, false);
-            // rect.setFill(cutpilePattern);
-
-            // Image californiashagFloor = FlooringTypes.CALIFORNIASHAG.getFloor();
-            // ImagePattern californiashagPattern = new ImagePattern(californiashagFloor, 0, 0, 64,
-            // 64, false);
-            // rect.setFill(californiashagPattern);
-
-            rect.setStroke(Color.BLACK);
+            rect.setStroke(WALL_COLOR);
             rect.setStrokeWidth(2.0);
 
             rect.setUserData(room);
 
             boolean isSelected = (selectedRoomModel == room);
             if (isSelected) {
-                rect.setStroke(Color.rgb(0, 100, 255));
+                rect.setStroke(SELECTION_COLOR);
                 rect.setStrokeWidth(4.0);
                 selectedRoomRect = rect;
             }
 
             rect.setOnMouseEntered(e -> {
                 if (selectedRoomModel != room) {
-                    rect.setStroke(Color.rgb(100, 150, 255));
+                    rect.setStroke(HOVER_COLOR);
                     rect.setStrokeWidth(3.0);
                 }
                 currentHoverRoom = room;
@@ -207,7 +236,7 @@ public class HouseVisualizationPane extends Pane {
 
             rect.setOnMouseExited(e -> {
                 if (selectedRoomModel != room) {
-                    rect.setStroke(Color.BLACK);
+                    rect.setStroke(WALL_COLOR);
                     rect.setStrokeWidth(2.0);
                 }
                 currentHoverRoom = null;
@@ -216,8 +245,7 @@ public class HouseVisualizationPane extends Pane {
 
             rect.setOnMouseMoved(e -> {
                 if (currentHoverRoom == room) {
-                    hoverTooltip.setLayoutX(e.getSceneX() + 15);
-                    hoverTooltip.setLayoutY(e.getSceneY() + 15);
+                    positionTooltip(e.getSceneX(), e.getSceneY());
                 }
             });
 
@@ -232,13 +260,13 @@ public class HouseVisualizationPane extends Pane {
 
     private void selectRoom(Room room, Rectangle rect) {
         if (selectedRoomRect != null && selectedRoomRect != rect) {
-            selectedRoomRect.setStroke(Color.BLACK);
+            selectedRoomRect.setStroke(WALL_COLOR);
             selectedRoomRect.setStrokeWidth(2.0);
         }
 
         selectedRoomModel = room;
         selectedRoomRect = rect;
-        rect.setStroke(Color.rgb(0, 100, 255));
+        rect.setStroke(SELECTION_COLOR);
         rect.setStrokeWidth(4.0);
 
         updateResizeHandles(rect);
@@ -277,7 +305,7 @@ public class HouseVisualizationPane extends Pane {
         hoverTooltip.getChildren().clear();
 
         Label idLabel = new Label("Room ID: " + room.getId().substring(0, 8));
-        idLabel.setStyle("-fx-font-weight: bold;");
+        idLabel.getStyleClass().add("room-tooltip-title");
 
         Label posLabel =
                 new Label(String.format("Position: (%.1f, %.1f)", room.getX(), room.getY()));
@@ -286,10 +314,33 @@ public class HouseVisualizationPane extends Pane {
         Label areaLabel = new Label(String.format("Area: %.1f ft²", room.getArea()));
         Label doorsLabel = new Label("Doors: " + room.getDoors().size());
 
+        posLabel.getStyleClass().add("room-tooltip-detail");
+        sizeLabel.getStyleClass().add("room-tooltip-detail");
+        areaLabel.getStyleClass().add("room-tooltip-detail");
+        doorsLabel.getStyleClass().add("room-tooltip-detail");
+
         hoverTooltip.getChildren().addAll(idLabel, posLabel, sizeLabel, areaLabel, doorsLabel);
-        hoverTooltip.setLayoutX(x + 15);
-        hoverTooltip.setLayoutY(y + 15);
+        positionTooltip(x, y);
         hoverTooltip.setVisible(true);
+    }
+
+    private void positionTooltip(double sceneX, double sceneY) {
+        Point2D localPoint = this.sceneToLocal(sceneX, sceneY);
+        hoverTooltip.applyCss();
+        hoverTooltip.autosize();
+
+        double margin = 12.0;
+        double width = hoverTooltip.prefWidth(-1);
+        double height = hoverTooltip.prefHeight(-1);
+
+        double desiredX = localPoint.getX() + 16;
+        double desiredY = localPoint.getY() + 16;
+
+        double maxX = Math.max(margin, getWidth() - width - margin);
+        double maxY = Math.max(margin, getHeight() - height - margin);
+
+        hoverTooltip.setLayoutX(Math.min(maxX, Math.max(margin, desiredX)));
+        hoverTooltip.setLayoutY(Math.min(maxY, Math.max(margin, desiredY)));
     }
 
     private void resizeRoom(double currentX, double currentY) {
@@ -329,7 +380,7 @@ public class HouseVisualizationPane extends Pane {
 
     public void deselectRoom() {
         if (selectedRoomRect != null) {
-            selectedRoomRect.setStroke(Color.BLACK);
+            selectedRoomRect.setStroke(WALL_COLOR);
             selectedRoomRect.setStrokeWidth(2.0);
         }
         selectedRoomModel = null;
@@ -361,8 +412,10 @@ public class HouseVisualizationPane extends Pane {
                 doorLine.setEndY(y + width);
             }
 
-            doorLine.setStroke(Color.GREEN);
+            doorLine.setStroke(DOOR_COLOR);
             doorLine.setStrokeWidth(4.0);
+            doorLine.setStrokeLineCap(StrokeLineCap.ROUND);
+            doorLine.setMouseTransparent(true);
 
             this.getChildren().add(doorLine);
         }
@@ -378,15 +431,16 @@ public class HouseVisualizationPane extends Pane {
             rect.setHeight(obstruction.getHeight() * scale);
 
             if (obstruction instanceof BlockingObstruction) {
-                rect.setFill(Color.DARKGRAY);
-                rect.setStroke(Color.BLACK);
+                rect.setFill(Color.web("#5e6a72"));
+                rect.setStroke(Color.web("#2f3a40"));
             } else if (obstruction instanceof PassUnderObstruction) {
-                rect.setFill(Color.LIGHTGRAY);
-                rect.setStroke(Color.DARKGRAY);
+                rect.setFill(Color.web("#ccd3d8"));
+                rect.setStroke(Color.web("#67747d"));
                 rect.getStrokeDashArray().addAll(5.0, 5.0);
             }
 
             rect.setStrokeWidth(1.5);
+            rect.setMouseTransparent(true);
 
             this.getChildren().add(rect);
         }

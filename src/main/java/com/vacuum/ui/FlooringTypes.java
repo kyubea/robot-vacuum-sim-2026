@@ -1,9 +1,6 @@
 package com.vacuum.ui;
 
 import javafx.scene.image.Image;
-import java.io.InputStream;
-import java.io.IOException;
-import java.util.Objects;
 
 // Can probably delete this file now, it has been worked into HouseVisualizationPane.java
 
