@@ -1,9 +1,16 @@
 package com.vacuum.util;
 
 import com.vacuum.model.VacuumConfig;
+import com.vacuum.model.Door;
+import com.vacuum.model.Door.Orientation;
 import com.vacuum.model.Room;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 
@@ -18,18 +25,24 @@ public class Vacuum {
     public ImageView vImageView;
     public int moveMode = 1;
     private double battery = 100;
-    private VacuumConfig config;
-    private List<Room> rooms;
+    // private VacuumConfig config;
+    private Image image;
+    private ImageView imageView;
+    private List<Rectangle> wallColliders;
 
     private static final double BATTERY_DRAIN_RATE = 5; // percentage per second
+    private static final double VACUUM_SIZE = 2;
 
-    public Vacuum(double x, double y, List<Room> rooms) {
+    public Vacuum(double x, double y) {
         this.x = x;
         this.y = y;
         this.startX = x;
         this.startY = y;
         this.orientation = 0;
-        this.rooms = rooms;
+        image = new Image(getClass().getResourceAsStream("/vacuumRotated.png"));
+        imageView = new ImageView();
+        wallColliders = new ArrayList<Rectangle>();
+
 
     }
 
@@ -99,7 +112,7 @@ public class Vacuum {
     private void alg1(double deltaTime) {
         // placeholder movement alg, replace
         this.forward(10, deltaTime);
-        this.rotate(30, deltaTime);
+        // this.rotate(30, deltaTime);
 
     }
 
@@ -116,18 +129,25 @@ public class Vacuum {
     }
 
     private void testCollision(double rollbackX, double rollbackY) {
-        boolean insideAnyRoom = false;
-        for (Room room : this.rooms) {
-            if ((x >= room.getX() + 3.2 && x <= room.getMaxX() - 3.2 && y >= room.getY() + 3.2
-                    && y <= room.getMaxY() - 3.2)) {
-                insideAnyRoom = true;
+        Rectangle vacBounds = this.getBounds(0, 0, 10);
+        double vx = this.x;
+        double vy = this.y;
+        double vw = VACUUM_SIZE;
+        double vh = VACUUM_SIZE;
+
+        for (Rectangle w : wallColliders) {
+            double wx = w.getX();
+            double wy = w.getY();
+            double ww = w.getWidth();
+            double wh = w.getHeight();
+
+            boolean overlaps = vx < wx + ww && vx + vw > wx && vy < wy + wh && vy + vh > wy;
+
+            if (overlaps) {
+                this.x = rollbackX;
+                this.y = rollbackY;
                 break;
             }
-        }
-        if (!insideAnyRoom) {
-            this.x = rollbackX;
-            this.y = rollbackY;
-            System.out.println("collision");
         }
 
     }
@@ -144,62 +164,120 @@ public class Vacuum {
         return orientation;
     }
 
+    public Image getImage() {
+        return image;
+    }
 
-    /*
-     * public void constrainToBounds(double maxWidth, double maxHeight) { x = Math.max(0,
-     * Math.min(x, maxWidth - image.getWidth())); y = Math.max(0, Math.min(y, maxHeight -
-     * image.getHeight())); }
-     * 
-     * public void update(double deltaTime) { // Drain battery over time battery -=
-     * BATTERY_DRAIN_RATE * deltaTime;
-     * 
-     * // Ensure battery doesn't go below 0 if (battery < 0) { battery = 0; }
-     * 
-     * // Only move if battery is available if (battery > 0) { switch (moveMode) { case 2:
-     * alg2(deltaTime); break; case 3: alg3(deltaTime); break; case 4: alg4(deltaTime); break;
-     * default: alg1(deltaTime); break; } }
-     * 
-     * }
-     * 
-     * private void alg1(double deltaTime) { this.rotate(60.0, deltaTime); this.forward(60.0,
-     * deltaTime); }
-     * 
-     * private void alg2(double deltaTime) { this.rotate(600.0, deltaTime); }
-     * 
-     * private void alg3(double deltaTime) { this.forward(-300.0, deltaTime); }
-     * 
-     * private void alg4(double deltaTime) { this.rotate(-300.0, deltaTime); }
-     * 
-     * public void getRenderImage() {
-     * 
-     * 
-     * }
-     * 
-     * 
-     * public void render(GraphicsContext gc) { // Save current transform gc.save();
-     * 
-     * // Move to the image position and rotate around its center double centerX = x +
-     * image.getWidth() / 2; double centerY = y + image.getHeight() / 2;
-     * 
-     * gc.translate(centerX, centerY); gc.rotate(angle); gc.translate(-centerX, -centerY);
-     * 
-     * // Draw the image gc.drawImage(image, x, y);
-     * 
-     * // Restore transform gc.restore(); }
-     * 
-     * 
-     * 
-     * public double getAngle() { return angle; }
-     * 
-     * public double getBattery() { return battery; }
-     * 
-     * public Image getImage() { return image; }
-     * 
-     * public void setX(double x) { this.x = x; }
-     * 
-     * public void setY(double y) { this.y = y; }
-     * 
-     * public void setAngle(double angle) { this.angle = angle; }
-     */
+    public ImageView getImageView() {
+        return imageView;
+    }
 
+    public double getSize() {
+        return VACUUM_SIZE;
+    }
+
+    public Rectangle getBounds(double offsetX, double offsetY, double scale) {
+        Rectangle rect = new Rectangle();
+        rect.setX(offsetX + x * scale);
+        rect.setY(offsetY + y * scale);
+        rect.setWidth(VACUUM_SIZE * scale);
+        rect.setHeight(VACUUM_SIZE * scale);
+
+        // debug visuals
+        rect.setFill(Color.TRANSPARENT);
+        rect.setStroke(Color.BLACK);
+        rect.setStrokeWidth(2.0);
+        return rect;
+    }
+
+    public void createWallColliders(List<Room> rooms) {
+        this.wallColliders = new ArrayList<Rectangle>();
+        for (Room room : rooms) {
+            ArrayList<Double> leftInterrupts = new ArrayList<Double>();
+            ArrayList<Double> rightInterrupts = new ArrayList<Double>();
+            ArrayList<Double> topInterrupts = new ArrayList<Double>();
+            ArrayList<Double> bottomInterrupts = new ArrayList<Double>();
+            leftInterrupts.add(room.getY());
+            leftInterrupts.add(room.getMaxY());
+            rightInterrupts.add(room.getY());
+            rightInterrupts.add(room.getMaxY());
+            topInterrupts.add(room.getX());
+            topInterrupts.add(room.getMaxX());
+            bottomInterrupts.add(room.getX());
+            bottomInterrupts.add(room.getMaxX());
+
+            for (Door door : room.getDoors()) {
+                if (door.getOrientation() == Orientation.HORIZONTAL) {
+                    if (door.getY() == room.getY()) {
+                        topInterrupts.add(door.getX());
+                        topInterrupts.add(door.getX() + door.getWidth());
+                    } else if (door.getY() == room.getMaxY()) {
+                        bottomInterrupts.add(door.getX());
+                        bottomInterrupts.add(door.getX() + door.getWidth());
+                    } else {
+                        System.err.println("error getting door horz. position");
+                    }
+                } else if (door.getOrientation() == Orientation.VERTICAL) {
+                    if (door.getX() == room.getX()) {
+                        leftInterrupts.add(door.getY());
+                        leftInterrupts.add(door.getY() + door.getWidth());
+                    } else if (door.getX() == room.getMaxX()) {
+                        rightInterrupts.add(door.getY());
+                        rightInterrupts.add(door.getY() + door.getWidth());
+                    } else {
+                        System.err.println("error getting door vert. position");
+                        System.err.println(door.getX());
+                        System.err.println(room.getMaxX());
+
+
+                    }
+                } else {
+                    System.err.println("error getting door orientation");
+                }
+            }
+
+            Collections.sort(leftInterrupts);
+            Collections.sort(rightInterrupts);
+            Collections.sort(topInterrupts);
+            Collections.sort(bottomInterrupts);
+
+            for (int i = 0; i < leftInterrupts.size(); i += 2)
+                addColliderIfUnique(room.getX(), leftInterrupts.get(i), 0.1,
+                        leftInterrupts.get(i + 1) - leftInterrupts.get(i));
+
+            for (int i = 0; i < rightInterrupts.size(); i += 2)
+                addColliderIfUnique(room.getMaxX(), rightInterrupts.get(i), 0.1,
+                        rightInterrupts.get(i + 1) - rightInterrupts.get(i));
+
+            for (int i = 0; i < topInterrupts.size(); i += 2)
+                addColliderIfUnique(topInterrupts.get(i), room.getY(),
+                        topInterrupts.get(i + 1) - topInterrupts.get(i), 0.1);
+
+            for (int i = 0; i < bottomInterrupts.size(); i += 2)
+                addColliderIfUnique(bottomInterrupts.get(i), room.getMaxY(),
+                        bottomInterrupts.get(i + 1) - bottomInterrupts.get(i), 0.1);
+        }
+    }
+
+    private void addColliderIfUnique(double x, double y, double width, double height) {
+        for (Rectangle existing : wallColliders) {
+            if (existing.getX() == x && existing.getY() == y && existing.getWidth() == width
+                    && existing.getHeight() == height) {
+                return;
+            }
+        }
+        Rectangle rect = new Rectangle();
+        rect.setX(x);
+        rect.setY(y);
+        rect.setWidth(width);
+        rect.setHeight(height);
+        rect.setFill(Color.RED);
+        rect.setStroke(Color.RED);
+        rect.setStrokeWidth(1.0);
+        wallColliders.add(rect);
+    }
+
+    public List<Rectangle> getWallColliders() {
+        return this.wallColliders;
+    }
 }

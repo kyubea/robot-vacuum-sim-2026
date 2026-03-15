@@ -1,6 +1,7 @@
 package com.vacuum.ui;
 
 import com.vacuum.model.*;
+import com.vacuum.model.Door.Orientation;
 import com.vacuum.util.Vacuum;
 import com.vacuum.util.simulationTimer;
 import javafx.application.Application;
@@ -11,8 +12,15 @@ import javafx.scene.control.*;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.event.EventHandler;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import org.w3c.dom.css.Rect;
+import javafx.scene.shape.Rectangle;
+
 
 
 /**
@@ -37,11 +45,8 @@ public class VacuumSimulatorApp extends Application {
     public void start(Stage primaryStage) {
         // Create default house (Req 1.2: valid default state)
         house = createDefaultHouse();
-
-
-        Room startPos = house.getRooms().get(0);
-        vacuum = new Vacuum(startPos.getX() + startPos.getWidth() / 2,
-                startPos.getY() + startPos.getHeight() / 2, house.getRooms());
+        vacuum = new Vacuum(25, 12);
+        vacuum.createWallColliders(house.getRooms());
 
         // Create UI components
         BorderPane root = new BorderPane();
@@ -55,8 +60,6 @@ public class VacuumSimulatorApp extends Application {
         visualizationPane.setVacuum(vacuum);
         visualizationPane.setHouse(house);
         simTimer = new simulationTimer(vacuum, visualizationPane);
-
-
 
         scrollPane = new ScrollPane(visualizationPane);
         scrollPane.setPannable(true); // Enable panning by dragging
@@ -252,8 +255,8 @@ public class VacuumSimulatorApp extends Application {
          * particular value.
          */
         // long seed = 42L; // any constant seed is deterministic
-        long seed = System.currentTimeMillis(); // moving target is not deterministic
-        // long seed = 1770586878168L; // debug placement problems by capturing the seed that failed
+        // long seed = System.currentTimeMillis(); // moving target is not deterministic
+        long seed = 1770586878168L; // debug placement problems by capturing the seed that failed
 
         System.out.printf("Generating house floor plan using seed = %d%n", seed);
         House h = new House(seed);

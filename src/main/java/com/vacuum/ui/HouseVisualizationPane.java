@@ -1,7 +1,5 @@
 package com.vacuum.ui;
 
-import java.io.FileInputStream;
-import java.io.InputStream;
 import com.vacuum.model.*;
 import com.vacuum.util.Vacuum;
 import javafx.geometry.Insets;
@@ -18,6 +16,8 @@ import javafx.scene.shape.Line;
 import javafx.scene.shape.Circle;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Visualization pane that renders a House with rooms, doors, and obstructions
@@ -144,6 +144,7 @@ public class HouseVisualizationPane extends Pane {
         renderDoors();
         renderObstructions();
         renderVacuum();
+        renderColliders();
 
         if (selectedRoomModel != null) {
             updateSelectedRoom();
@@ -154,21 +155,6 @@ public class HouseVisualizationPane extends Pane {
         rightHandle.toFront();
         topHandle.toFront();
         bottomHandle.toFront();
-    }
-
-    private void renderVacuum() {
-        Image vImage = new Image(getClass().getResourceAsStream("/vacuumRotated.png"));
-        ImageView vImageView = new ImageView();
-
-        double screenX = offsetX + vacuum.getX() * scale;
-        double screenY = offsetY + vacuum.getY() * scale;
-        vImageView.setImage(vImage);
-
-
-        vImageView.relocate(screenX - vImage.getWidth() / 2, screenY - vImage.getHeight() / 2);
-
-        vImageView.setRotate(this.vacuum.getOrientation());
-        this.getChildren().add(vImageView);
     }
 
     private void renderRooms() {
@@ -404,6 +390,40 @@ public class HouseVisualizationPane extends Pane {
                 return Color.LIGHTGRAY;
         }
     }
+
+
+
+    private void renderVacuum() {
+        Image vImage = vacuum.getImage();
+        ImageView vImageView = vacuum.getImageView();
+
+        double screenX = offsetX + vacuum.getX() * scale;
+        double screenY = offsetY + vacuum.getY() * scale;
+        vImageView.setImage(vImage);
+        vImageView.setPreserveRatio(true);
+        vImageView.setFitWidth(vacuum.getSize() * scale);
+        vImageView.relocate(screenX, screenY);
+        vImageView.setRotate(this.vacuum.getOrientation());
+        this.getChildren().add(vImageView);
+    }
+
+    private void renderColliders() {
+        Rectangle vacBounds = vacuum.getBounds(offsetX, offsetY, scale);
+        this.getChildren().add(vacBounds);
+
+        for (Rectangle rect : vacuum.getWallColliders()) {
+            Rectangle b = new Rectangle();
+            b.setX(offsetX + rect.getX() * scale);
+            b.setY(offsetY + rect.getY() * scale);
+            b.setWidth(rect.getWidth() * scale);
+            b.setHeight(rect.getHeight() * scale);
+            b.setFill(Color.RED);
+            b.setStroke(Color.RED);
+            b.setStrokeWidth(1);
+            this.getChildren().add(b);
+        }
+    }
+
 
     public void setScale(double scale) {
         this.scale = scale;
