@@ -129,7 +129,7 @@ public class Vacuum {
     }
 
     private void testCollision(double rollbackX, double rollbackY) {
-        Rectangle vacBounds = this.getBounds(0, 0, 10);
+        Rectangle vacBounds = this.getBounds(0, 0, 1);
         double vx = this.x;
         double vy = this.y;
         double vw = VACUUM_SIZE;
@@ -178,8 +178,8 @@ public class Vacuum {
 
     public Rectangle getBounds(double offsetX, double offsetY, double scale) {
         Rectangle rect = new Rectangle();
-        rect.setX(offsetX + x * scale);
-        rect.setY(offsetY + y * scale);
+        rect.setX(offsetX + this.x * scale);
+        rect.setY(offsetY + this.y * scale);
         rect.setWidth(VACUUM_SIZE * scale);
         rect.setHeight(VACUUM_SIZE * scale);
 
