@@ -200,3 +200,103 @@
     -fx-font-size: 11px;
     -fx-text-fill: #4e5f6a;
 }
+
+/* ---- Dark mode overrides ---- */
+.app-root.dark-mode {
+    -app-bg: #181f28;
+    -surface-bg: #1e2c38;
+    -panel-bg: #192430;
+    -card-bg: #1e2c38;
+    -card-border: #2a3e4e;
+    -text-main: #d8e6ee;
+    -text-muted: #7a9aaa;
+    -accent: #1da3ab;
+    -accent-soft: #1a3540;
+    -valid: #2fb854;
+    -invalid: #d9554a;
+    -fx-background-color: -app-bg;
+}
+
+.app-root.dark-mode .top-shell {
+    -fx-background-color: linear-gradient(to bottom, #1d2b38, #19252f);
+    -fx-border-color: transparent transparent #1e3040 transparent;
+}
+
+.app-root.dark-mode .main-menu {
+    -fx-background-color: transparent;
+}
+
+.app-root.dark-mode .main-menu .label {
+    -fx-text-fill: -text-main;
+}
+
+.app-root.dark-mode .tool-strip {
+    -fx-background-color: rgba(16, 24, 32, 0.88);
+    -fx-border-color: #1e3040 transparent transparent transparent;
+}
+
+.app-root.dark-mode .strip-button {
+    -fx-background-color: #1e2c38;
+    -fx-border-color: #2a3e4e;
+    -fx-text-fill: -text-main;
+}
+
+.app-root.dark-mode .strip-button:hover {
+    -fx-background-color: -accent-soft;
+    -fx-border-color: -accent;
+}
+
+.app-root.dark-mode .strip-button:selected {
+    -fx-background-color: #1a3540;
+    -fx-border-color: -accent;
+}
+
+.app-root.dark-mode .center-shell {
+    -fx-background-color: linear-gradient(to bottom, #151d26, #131b24);
+}
+
+.app-root.dark-mode .house-scroll-pane {
+    -fx-border-color: #1e3040;
+}
+
+.app-root.dark-mode .house-scroll-pane>.viewport {
+    -fx-background-color: #141c24;
+}
+
+.app-root.dark-mode .house-scroll-pane .corner {
+    -fx-background-color: #141c24;
+}
+
+.app-root.dark-mode .house-visualization-pane {
+    -fx-background-color: radial-gradient(center 50% 40%, radius 80%, #1b2a38 0%, #141e28 100%);
+}
+
+.app-root.dark-mode .info-panel {
+    -fx-background-color: linear-gradient(to bottom, #192430, #141f2a);
+    -fx-border-color: #1e3040;
+}
+
+.app-root.dark-mode .info-card {
+    -fx-background-color: -card-bg;
+    -fx-border-color: -card-border;
+}
+
+.app-root.dark-mode .hint-text {
+    -fx-background-color: #192430;
+    -fx-text-fill: -text-muted;
+}
+
+.app-root.dark-mode .shell-button {
+    -fx-background-color: #1e2c38;
+    -fx-border-color: #2a3e4e;
+    -fx-text-fill: -text-main;
+}
+
+.app-root.dark-mode .status-bar {
+    -fx-background-color: linear-gradient(to bottom, #1a2530, #141e28);
+    -fx-border-color: #1e3040 transparent transparent transparent;
+}
+
+.app-root.dark-mode .strip-hint {
+    -fx-text-fill: #5a7a8a;
+}
