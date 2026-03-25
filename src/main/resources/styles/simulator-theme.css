@@ -271,7 +271,8 @@
     -fx-background-color: radial-gradient(center 50% 40%, radius 80%, #1b2a38 0%, #141e28 100%);
 }
 
-.app-root.dark-mode .info-panel {
+.app-root.dark-mode .info-panel,
+.app-root.dark-mode.info-panel {
     -fx-background-color: linear-gradient(to bottom, #192430, #141f2a);
     -fx-border-color: #1e3040;
 }
