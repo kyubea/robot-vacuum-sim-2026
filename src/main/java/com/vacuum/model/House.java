@@ -3,9 +3,10 @@ package com.vacuum.model;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
-import java.util.Objects;
+import java.util.Set;
 import javafx.scene.image.Image;
 
 /**
@@ -24,8 +25,8 @@ public class House {
     private static final double MIN_ASPECT_OTHER = RECIPROCAL_GOLDEN;
     private static final double MAX_ASPECT_OTHER = GOLDEN_RATIO;
 
-    private static final double DOOR_MARGIN_FACTOR = 0.5; // Min spacing to corner of room (factor
-                                                          // of door width)
+    public static final double DOOR_MARGIN_FACTOR = 0.5; // Min spacing to corner of room (factor
+                                                         // of door width)
     private static final double EXTRA_DOOR_PROB = 0.10; // 10% prob of extra door to adjacent room
 
     private static final boolean DEBUG = false; // Turn on for generation diagnostic output
@@ -40,6 +41,9 @@ public class House {
 
     public static final double MIN_TOTAL_AREA = 200.0; // square feet
     public static final double MAX_TOTAL_AREA = 8000.0; // square feet
+    public static final int DEFAULT_GENERATED_ROOM_COUNT = 7;
+    public static final double DEFAULT_GENERATED_MIN_AREA = 800.0;
+    public static final double DEFAULT_GENERATED_MAX_AREA = 2100.0;
 
     public enum FloorCovering {
         HARDWOOD("vac_hardwood.png", "Hardwood", 0.90), TILE("vac_tile.png", "Tile",
@@ -74,8 +78,7 @@ public class House {
         this.doors = new ArrayList<>();
         this.obstructions = new ArrayList<>();
         this.floorCovering = FloorCovering.HARDWOOD; // Default
-        this.seed = seed;
-        this.random = new Random(seed);
+        setSeed(seed);
     }
 
     public House() {
@@ -98,6 +101,7 @@ public class House {
         }
 
         rooms.add(room);
+        refreshSeedFromState();
     }
 
     /**
@@ -117,6 +121,7 @@ public class House {
         doorsToRemove.forEach(this::removeDoor);
 
         rooms.remove(room);
+        refreshSeedFromState();
     }
 
     /**
@@ -133,6 +138,7 @@ public class House {
             throw new IllegalArgumentException("Door must be on shared wall between rooms");
         }
         doors.add(door);
+        refreshSeedFromState();
     }
 
     /**
@@ -145,6 +151,7 @@ public class House {
         door.getRoom1().removeDoor(door);
         door.getRoom2().removeDoor(door);
         doors.remove(door);
+        refreshSeedFromState();
     }
 
     /**
@@ -155,6 +162,7 @@ public class House {
             throw new IllegalArgumentException("Obstruction cannot be null");
         }
         obstructions.add(obstruction);
+        refreshSeedFromState();
     }
 
 
@@ -166,6 +174,7 @@ public class House {
             throw new IllegalArgumentException("Obstruction cannot be null");
         }
         obstructions.remove(obstruction);
+        refreshSeedFromState();
     }
 
     /**
@@ -217,6 +226,7 @@ public class House {
         // Check each room has at least one door (Req 2.4) and minimum area in a single pass
         List<String> connectivityErrors = new ArrayList<>();
         List<String> areaErrors = new ArrayList<>();
+        List<String> doorErrors = new ArrayList<>();
 
         for (Room room : rooms) {
             if (!room.hasValidConnectivity()) {
@@ -228,9 +238,87 @@ public class House {
                         room.getId().substring(0, 8), room.getArea(), Room.MIN_AREA));
             }
         }
+
+        for (Door door : doors) {
+            if (!rooms.contains(door.getRoom1()) || !rooms.contains(door.getRoom2())) {
+                doorErrors.add(String.format("Door %s connects room(s) outside this house",
+                        door.getId().substring(0, 8)));
+                continue;
+            }
+
+            if (!door.isValidPosition()) {
+                doorErrors.add(String.format("Door %s is not on a valid shared wall",
+                        door.getId().substring(0, 8)));
+            }
+        }
+
+        List<Room> orphanedRooms = getOrphanedRooms();
+        if (!orphanedRooms.isEmpty()) {
+            connectivityErrors
+                    .add("Orphaned/disconnected rooms: " + summarizeRoomIds(orphanedRooms));
+        }
+
         errors.addAll(connectivityErrors);
+        errors.addAll(doorErrors);
         errors.addAll(areaErrors);
         return errors;
+    }
+
+    /**
+     * Rooms that are disconnected from the primary connected component.
+     */
+    private List<Room> getOrphanedRooms() {
+        List<Room> orphaned = new ArrayList<>();
+        if (rooms.isEmpty()) {
+            return orphaned;
+        }
+
+        Set<Room> visited = traverseConnectedRooms(rooms.get(0));
+        for (Room room : rooms) {
+            if (!visited.contains(room)) {
+                orphaned.add(room);
+            }
+        }
+
+        return orphaned;
+    }
+
+    /**
+     * Standard BFS across room-door graph.
+     */
+    private Set<Room> traverseConnectedRooms(Room start) {
+        Set<Room> visited = new HashSet<>();
+        if (start == null) {
+            return visited;
+        }
+
+        Deque<Room> queue = new ArrayDeque<>();
+        visited.add(start);
+        queue.add(start);
+
+        while (!queue.isEmpty()) {
+            Room current = queue.removeFirst();
+
+            for (Door door : current.getDoors()) {
+                Room next = door.getOtherRoom(current);
+                if (next == null || !rooms.contains(next)) {
+                    continue;
+                }
+                if (visited.add(next)) {
+                    queue.addLast(next);
+                }
+            }
+        }
+
+        return visited;
+    }
+
+    private String summarizeRoomIds(List<Room> roomList) {
+        List<String> ids = new ArrayList<>();
+        for (Room room : roomList) {
+            ids.add(room.getId().substring(0, 8));
+        }
+        return String.join(", ", ids);
     }
 
     /**
@@ -248,6 +336,22 @@ public class House {
             throw new IllegalArgumentException("Floor covering cannot be null");
         }
         this.floorCovering = covering;
+    }
+
+    public long getSeed() {
+        return seed;
+    }
+
+    public void setSeed(long seed) {
+        this.seed = seed;
+        this.random = new Random(seed);
+    }
+
+    /**
+     * Seed is treated strictly as generator input. Manual edits do not rewrite it.
+     */
+    public void refreshSeedFromState() {
+        // Intentionally left blank.
     }
 
     // Getters
@@ -275,7 +379,17 @@ public class House {
                 floorCovering.name(), isValid());
     }
 
+    /**
+     * Generate with the default simulator generation parameters.
+     */
+    public void generateDefaultFloorPlan() {
+        generateFloorPlan(DEFAULT_GENERATED_ROOM_COUNT, DEFAULT_GENERATED_MIN_AREA,
+                DEFAULT_GENERATED_MAX_AREA);
+    }
+
     public void generateFloorPlan(int targetNumRooms, double minTotalArea, double maxTotalArea) {
+        // Ensure regeneration from the same seed is deterministic.
+        this.random = new Random(this.seed);
         obstructions.clear();
         while (true) {
             rooms.clear();
@@ -317,6 +431,7 @@ public class House {
         for (Door d : doors) {
             d.setPosition(d.getX() - xmin, d.getY() - ymin);
         }
+
     }
 
     private void _generate(int targetNumRooms, double minTotalArea, double maxTotalArea) {
@@ -331,9 +446,9 @@ public class House {
         double greatHeight = Math.sqrt(greatAreaTarget / aspectGreat);
         double greatWidth = greatAreaTarget / greatHeight;
 
-        // Snap to nearest 0.5 ft
-        greatWidth = Math.round(greatWidth * 2) / 2.0;
-        greatHeight = Math.round(greatHeight * 2) / 2.0;
+        // Snap to nearest whole foot
+        greatWidth = Math.max(5.0, Math.round(greatWidth));
+        greatHeight = Math.max(5.0, Math.round(greatHeight));
 
         Room great = new Room(0, 0, greatWidth, greatHeight, "GR");
         rooms.add(great);
@@ -369,12 +484,10 @@ public class House {
 
             double aspect =
                     MIN_ASPECT_OTHER + random.nextDouble() * (MAX_ASPECT_OTHER - MIN_ASPECT_OTHER);
-            double h = Math.ceil(Math.sqrt(area / aspect) * 100.0) / 100.0;
-            double w = Math.ceil(area / h * 100.0) / 100.0;
-
-            // No wall can be shorter than the space required to place a door.
-            w = Math.max(w, doorWidth * (1.0 + DOOR_MARGIN_FACTOR));
-            h = Math.max(h, doorWidth * (1.0 + DOOR_MARGIN_FACTOR));
+            // Snap to nearest whole foot; minimum dimension to fit a door with margins
+            double minDim = Math.ceil(doorWidth * (1.0 + DOOR_MARGIN_FACTOR));
+            double h = Math.max(minDim, Math.round(Math.sqrt(area / aspect)));
+            double w = Math.max(minDim, Math.round(area / h));
 
             // Try to place a room on the current side.
             Room newRoom = tryPlaceOnWall(parent, sp.side, w, h, area);
