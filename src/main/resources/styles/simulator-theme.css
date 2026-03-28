@@ -1,0 +1,303 @@
+.app-root {
+    -app-bg: #dfe5e9;
+    -surface-bg: #f7f9fa;
+    -panel-bg: #e8eff3;
+    -card-bg: #fbfcfd;
+    -card-border: #c7d3da;
+    -text-main: #1f2d36;
+    -text-muted: #5b6d77;
+    -accent: #0f7b82;
+    -accent-soft: #d8eef0;
+    -valid: #1f7a37;
+    -invalid: #b04031;
+
+    -fx-font-family: "Bahnschrift", "Segoe UI";
+    -fx-background-color: -app-bg;
+}
+
+.top-shell {
+    -fx-background-color: linear-gradient(to bottom, #f6f8f9, #edf2f5);
+    -fx-border-color: transparent transparent #c6d2d9 transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.main-menu {
+    -fx-background-color: transparent;
+    -fx-padding: 2 6 2 6;
+}
+
+.main-menu .label {
+    -fx-font-family: "Bahnschrift SemiBold", "Segoe UI Semibold";
+    -fx-font-size: 12px;
+    -fx-text-fill: -text-main;
+}
+
+.tool-strip {
+    -fx-background-color: rgb(255, 255, 255, 0.66);
+    -fx-border-color: #d2dce1 transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
+.tool-group-label {
+    -fx-font-family: "Bahnschrift SemiBold", "Segoe UI Semibold";
+    -fx-font-size: 11px;
+    -fx-text-fill: -text-main;
+    -fx-padding: 0 8 0 0;
+}
+
+.strip-button {
+    -fx-background-color: -surface-bg;
+    -fx-border-color: #becad2;
+    -fx-border-radius: 5;
+    -fx-background-radius: 5;
+    -fx-text-fill: -text-main;
+    -fx-font-family: "Bahnschrift SemiBold", "Segoe UI Semibold";
+    -fx-min-width: 34;
+}
+
+.strip-button:hover {
+    -fx-background-color: -accent-soft;
+    -fx-border-color: -accent;
+}
+
+.strip-button:pressed {
+    -fx-background-color: #c7e7ea;
+}
+
+.strip-hint {
+    -fx-font-size: 11px;
+    -fx-text-fill: -text-muted;
+}
+
+.center-shell {
+    -fx-background-color: linear-gradient(to bottom, #e1e7eb, #d8e0e5);
+}
+
+.house-scroll-pane {
+    -fx-background-color: transparent;
+    -fx-border-color: #bfcbd2;
+    -fx-border-width: 1;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+}
+
+.house-scroll-pane>.viewport {
+    -fx-background-color: #eef3f6;
+}
+
+.house-scroll-pane .corner {
+    -fx-background-color: #eef3f6;
+}
+
+.house-visualization-pane {
+    -fx-background-color: radial-gradient(center 50% 40%, radius 80%, #edf2f4 0%, #e2e8ec 100%);
+}
+
+.info-panel {
+    -fx-background-color: linear-gradient(to bottom, #ecf1f4, #e5edf2);
+    -fx-border-color: #c2cfd7;
+    -fx-border-width: 0 0 0 1;
+}
+
+.panel-title {
+    -fx-font-family: "Bahnschrift SemiBold", "Segoe UI Semibold";
+    -fx-font-size: 17px;
+    -fx-text-fill: -text-main;
+}
+
+.panel-subtitle {
+    -fx-font-size: 11px;
+    -fx-text-fill: -text-muted;
+}
+
+.info-card {
+    -fx-background-color: -card-bg;
+    -fx-border-color: -card-border;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 10;
+}
+
+.card-title {
+    -fx-font-family: "Bahnschrift SemiBold", "Segoe UI Semibold";
+    -fx-font-size: 12px;
+    -fx-text-fill: -text-main;
+}
+
+.metric-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: -text-muted;
+}
+
+.metric-value {
+    -fx-font-family: "Bahnschrift SemiBold", "Segoe UI Semibold";
+    -fx-font-size: 12px;
+    -fx-text-fill: -text-main;
+}
+
+.hint-text {
+    -fx-font-size: 11px;
+    -fx-text-fill: -text-muted;
+    -fx-background-color: #f1f5f7;
+    -fx-background-radius: 6;
+    -fx-padding: 8;
+}
+
+.shell-button {
+    -fx-background-color: #e0e8ec;
+    -fx-border-color: #b5c4cd;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-text-fill: -text-main;
+    -fx-font-family: "Bahnschrift SemiBold", "Segoe UI Semibold";
+    -fx-padding: 7 10 7 10;
+}
+
+.shell-button:disabled {
+    -fx-opacity: 0.64;
+}
+
+.status-bar {
+    -fx-background-color: linear-gradient(to bottom, #eff3f6, #e4ebef);
+    -fx-border-color: #c1cdd5 transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
+.status-label {
+    -fx-font-family: "Bahnschrift SemiBold", "Segoe UI Semibold";
+    -fx-font-size: 12px;
+    -fx-text-fill: -text-main;
+}
+
+.status-hint {
+    -fx-font-size: 11px;
+    -fx-text-fill: -text-muted;
+}
+
+.valid-state {
+    -fx-text-fill: -valid;
+}
+
+.invalid-state {
+    -fx-text-fill: -invalid;
+}
+
+.room-tooltip {
+    -fx-background-color: rgb(243, 246, 248, 0.95);
+    -fx-border-color: #6d7e8a;
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+}
+
+.room-tooltip-title {
+    -fx-font-family: "Bahnschrift SemiBold", "Segoe UI Semibold";
+    -fx-font-size: 12px;
+    -fx-text-fill: #22313b;
+}
+
+.room-tooltip-detail {
+    -fx-font-size: 11px;
+    -fx-text-fill: #4e5f6a;
+}
+
+/* ---- Dark mode overrides ---- */
+.app-root.dark-mode {
+    -app-bg: #181f28;
+    -surface-bg: #1e2c38;
+    -panel-bg: #192430;
+    -card-bg: #1e2c38;
+    -card-border: #2a3e4e;
+    -text-main: #d8e6ee;
+    -text-muted: #7a9aaa;
+    -accent: #1da3ab;
+    -accent-soft: #1a3540;
+    -valid: #2fb854;
+    -invalid: #d9554a;
+    -fx-background-color: -app-bg;
+}
+
+.app-root.dark-mode .top-shell {
+    -fx-background-color: linear-gradient(to bottom, #1d2b38, #19252f);
+    -fx-border-color: transparent transparent #1e3040 transparent;
+}
+
+.app-root.dark-mode .main-menu {
+    -fx-background-color: transparent;
+}
+
+.app-root.dark-mode .main-menu .label {
+    -fx-text-fill: -text-main;
+}
+
+.app-root.dark-mode .tool-strip {
+    -fx-background-color: rgba(16, 24, 32, 0.88);
+    -fx-border-color: #1e3040 transparent transparent transparent;
+}
+
+.app-root.dark-mode .strip-button {
+    -fx-background-color: #1e2c38;
+    -fx-border-color: #2a3e4e;
+    -fx-text-fill: -text-main;
+}
+
+.app-root.dark-mode .strip-button:hover {
+    -fx-background-color: -accent-soft;
+    -fx-border-color: -accent;
+}
+
+.app-root.dark-mode .strip-button:selected {
+    -fx-background-color: #1a3540;
+    -fx-border-color: -accent;
+}
+
+.app-root.dark-mode .center-shell {
+    -fx-background-color: linear-gradient(to bottom, #151d26, #131b24);
+}
+
+.app-root.dark-mode .house-scroll-pane {
+    -fx-border-color: #1e3040;
+}
+
+.app-root.dark-mode .house-scroll-pane>.viewport {
+    -fx-background-color: #141c24;
+}
+
+.app-root.dark-mode .house-scroll-pane .corner {
+    -fx-background-color: #141c24;
+}
+
+.app-root.dark-mode .house-visualization-pane {
+    -fx-background-color: radial-gradient(center 50% 40%, radius 80%, #1b2a38 0%, #141e28 100%);
+}
+
+.app-root.dark-mode .info-panel,
+.app-root.dark-mode.info-panel {
+    -fx-background-color: linear-gradient(to bottom, #192430, #141f2a);
+    -fx-border-color: #1e3040;
+}
+
+.app-root.dark-mode .info-card {
+    -fx-background-color: -card-bg;
+    -fx-border-color: -card-border;
+}
+
+.app-root.dark-mode .hint-text {
+    -fx-background-color: #192430;
+    -fx-text-fill: -text-muted;
+}
+
+.app-root.dark-mode .shell-button {
+    -fx-background-color: #1e2c38;
+    -fx-border-color: #2a3e4e;
+    -fx-text-fill: -text-main;
+}
+
+.app-root.dark-mode .status-bar {
+    -fx-background-color: linear-gradient(to bottom, #1a2530, #141e28);
+    -fx-border-color: #1e3040 transparent transparent transparent;
+}
+
+.app-root.dark-mode .strip-hint {
+    -fx-text-fill: #5a7a8a;
+}

@@ -7,9 +7,15 @@ import com.vacuum.util.simulationTimer;
 import javafx.application.Application;
 import javafx.event.ActionEvent;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.ScrollEvent;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
@@ -22,6 +28,10 @@ import org.w3c.dom.css.Rect;
 import javafx.scene.shape.Rectangle;
 
 
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+import java.net.URL;
+import java.util.List;
 
 /**
  * Main JavaFX application for the vacuum simulator Req 1.1: Standalone Windows application
@@ -34,30 +44,51 @@ public class VacuumSimulatorApp extends Application {
     private HouseVisualizationPane visualizationPane;
     private ScrollPane scrollPane;
     private House house;
+    private BorderPane root;
+    private Stage primaryStage;
+    private Stage controlsStage;
 
     private Label statusLabel;
     private Label zoomLabel;
 
     private Vacuum vacuum;
     private simulationTimer simTimer;
+    private Label roomsValueLabel;
+    private Label doorsValueLabel;
+    private Label obstructionsValueLabel;
+    private Label totalAreaValueLabel;
+    private Label cleanableAreaValueLabel;
+    private Label floorCoveringValueLabel;
+    private Label seedValueLabel;
+    private Label validStateValueLabel;
 
     @Override
     public void start(Stage primaryStage) {
+        this.primaryStage = primaryStage;
+
         // Create default house (Req 1.2: valid default state)
         house = createDefaultHouse();
         vacuum = new Vacuum(20, 11.5);
         vacuum.createWallColliders(house.getRooms());
 
-        // Create UI components
-        BorderPane root = new BorderPane();
+        // Create app shell
+        root = new BorderPane();
+        root.getStyleClass().add("app-root");
 
-        // Top: Menu bar
+        // Top: menu + quick controls strip
         MenuBar menuBar = createMenuBar(primaryStage);
-        root.setTop(menuBar);
+        menuBar.getStyleClass().add("main-menu");
+
+        VBox topShell = new VBox();
+        topShell.getStyleClass().add("top-shell");
+        topShell.getChildren().addAll(menuBar, createToolStrip());
+        root.setTop(topShell);
 
         // Center: scrollable, pannable visualization
         visualizationPane = new HouseVisualizationPane();
         visualizationPane.setVacuum(vacuum);
+        visualizationPane.setStatusMessageHandler(this::updateStatus);
+        visualizationPane.setHouseChangedHandler(this::handleHouseChanged);
         visualizationPane.setHouse(house);
         simTimer = new simulationTimer(vacuum, visualizationPane);
 
@@ -65,7 +96,7 @@ public class VacuumSimulatorApp extends Application {
         scrollPane.setPannable(true); // Enable panning by dragging
         scrollPane.setFitToWidth(false);
         scrollPane.setFitToHeight(false);
-        scrollPane.setStyle("-fx-background-color: #f5f5f5;");
+        scrollPane.getStyleClass().add("house-scroll-pane");
 
         // Add zoom functionality with mouse wheel
         scrollPane.addEventFilter(ScrollEvent.SCROLL, event -> {
@@ -83,7 +114,10 @@ public class VacuumSimulatorApp extends Application {
             }
         });
 
-        root.setCenter(scrollPane);
+        StackPane centerShell = new StackPane(scrollPane);
+        centerShell.getStyleClass().add("center-shell");
+        centerShell.setPadding(new Insets(16));
+        root.setCenter(centerShell);
 
         // Right: info panel
         VBox infoPanel = createInfoPanel();
@@ -92,19 +126,115 @@ public class VacuumSimulatorApp extends Application {
 
 
         // Bottom: status bar
-        statusLabel = new Label("Ready");
-        statusLabel.setPadding(new Insets(5, 10, 5, 10));
-        statusLabel.setStyle(
-                "-fx-background-color: #e0e0e0; -fx-border-color: #c0c0c0; -fx-border-width: 1 0 0 0;");
-        root.setBottom(statusLabel);
+        root.setBottom(createStatusBar());
 
         // Create scene and show
         Scene scene = new Scene(root, WINDOW_WIDTH, WINDOW_HEIGHT);
+        URL cssUrl = getClass().getResource("/styles/simulator-theme.css");
+        if (cssUrl != null) {
+            scene.getStylesheets().add(cssUrl.toExternalForm());
+        }
+
         primaryStage.setTitle("Robot Vacuum Simulator");
         primaryStage.setScene(scene);
         primaryStage.show();
 
-        updateStatus("Default house loaded - " + house.getRooms().size() + " rooms");
+        updateInfoPanel();
+        updateZoomLabel();
+
+        List<String> validationErrors = house.validate();
+        if (validationErrors.isEmpty()) {
+            updateStatus("House verified - " + house.getRooms().size() + " rooms connected");
+        } else {
+            updateStatus("House invalid: " + validationErrors.get(0));
+        }
+    }
+
+    /**
+     * Quick access controls for common view interactions
+     */
+    private HBox createToolStrip() {
+        HBox strip = new HBox(8);
+        strip.setPadding(new Insets(10, 12, 10, 12));
+        strip.setAlignment(Pos.CENTER_LEFT);
+        strip.getStyleClass().add("tool-strip");
+
+        Label viewLabel = new Label("View");
+        viewLabel.getStyleClass().add("tool-group-label");
+
+        Button zoomOutButton = new Button("-");
+        zoomOutButton.getStyleClass().add("strip-button");
+        zoomOutButton.setOnAction(e -> zoom(0.85));
+
+        Button zoomInButton = new Button("+");
+        zoomInButton.getStyleClass().add("strip-button");
+        zoomInButton.setOnAction(e -> zoom(1.15));
+
+        Button resetZoomButton = new Button("100%");
+        resetZoomButton.getStyleClass().add("strip-button");
+        resetZoomButton.setOnAction(e -> {
+            visualizationPane.setScale(10.0);
+            updateZoomLabel();
+            updateStatus("Zoom reset to 100%");
+        });
+
+        // Add Room toggle
+        ToggleButton addRoomToggle = new ToggleButton("+ Room");
+        addRoomToggle.getStyleClass().add("strip-button");
+        addRoomToggle.setOnAction(e -> {
+            boolean active = addRoomToggle.isSelected();
+            visualizationPane.setAddRoomMode(active);
+            updateStatus(active ? "Draw mode: click and drag on the canvas to place a new room"
+                    : "Ready");
+        });
+
+        Button controlsButton = new Button("Controls");
+        controlsButton.getStyleClass().add("strip-button");
+        controlsButton.setOnAction(e -> toggleControlsWindow());
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        // Dark / Light mode toggle
+        ToggleButton darkToggle = new ToggleButton("Dark");
+        darkToggle.getStyleClass().add("strip-button");
+        darkToggle.setOnAction(e -> {
+            boolean isDark = darkToggle.isSelected();
+            darkToggle.setText(isDark ? "Light" : "Dark");
+            if (isDark) {
+                root.getStyleClass().add("dark-mode");
+            } else {
+                root.getStyleClass().remove("dark-mode");
+            }
+            updateControlsWindowTheme(isDark);
+            visualizationPane.setDarkMode(isDark);
+        });
+
+        strip.getChildren().addAll(viewLabel, zoomOutButton, zoomInButton, resetZoomButton,
+                addRoomToggle, controlsButton, spacer, darkToggle);
+        return strip;
+    }
+
+    /**
+     * Bottom status bar
+     */
+    private HBox createStatusBar() {
+        HBox statusBar = new HBox(10);
+        statusBar.setPadding(new Insets(8, 12, 8, 12));
+        statusBar.setAlignment(Pos.CENTER_LEFT);
+        statusBar.getStyleClass().add("status-bar");
+
+        statusLabel = new Label("Ready");
+        statusLabel.getStyleClass().add("status-label");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Label statusHint = new Label("Scale baseline: 10 px / ft at 100%");
+        statusHint.getStyleClass().add("status-hint");
+
+        statusBar.getChildren().addAll(statusLabel, spacer, statusHint);
+        return statusBar;
     }
 
     /**
@@ -134,7 +264,6 @@ public class VacuumSimulatorApp extends Application {
         Menu editMenu = new Menu("Edit");
         MenuItem editHouseItem = new MenuItem("Edit House...");
         MenuItem editRobotItem = new MenuItem("Robot Configuration...");
-        MenuItem floorCoveringItem = new MenuItem("Floor Covering...");
 
         editHouseItem.setDisable(true); // TODO: implement
         editRobotItem.setDisable(true);
@@ -148,8 +277,8 @@ public class VacuumSimulatorApp extends Application {
             item.setSelected(house.getFloorCovering() == covering);
             item.setOnAction(e -> {
                 house.setFloorCovering(covering);
-                visualizationPane.render();
-                updateStatus("Floor covering changed to " + covering.getDisplayName());
+                refreshUiAfterModelChange("Floor covering changed to " + covering.getDisplayName(),
+                        false, true);
             });
             floorSubmenu.getItems().add(item);
         }
@@ -182,14 +311,16 @@ public class VacuumSimulatorApp extends Application {
         MenuItem stopItem = new MenuItem("Stop");
         MenuItem pauseItem = new MenuItem("Pause");
         MenuItem resetItem = new MenuItem("Reset");
+        MenuItem regenerateSeedItem = new MenuItem("Regenerate From Seed...");
 
         startItem.setDisable(true); // TODO: implement
         stopItem.setDisable(true);
         pauseItem.setDisable(true);
         resetItem.setDisable(true);
+        regenerateSeedItem.setOnAction(e -> promptAndRegenerateFromSeed());
 
         simMenu.getItems().addAll(startItem, stopItem, pauseItem, new SeparatorMenuItem(),
-                resetItem);
+                regenerateSeedItem, resetItem);
 
         // Help menu
         Menu helpMenu = new Menu("Help");
@@ -209,7 +340,7 @@ public class VacuumSimulatorApp extends Application {
         newScale = Math.max(2.0, Math.min(50.0, newScale));
         visualizationPane.setScale(newScale);
         updateZoomLabel();
-        updateStatus(String.format("Zoom: %.0f%%", (newScale / 10.0) * 100));
+        updateStatus(String.format("Zoom %.0f%%", (newScale / 10.0) * 100));
     }
 
     /**
@@ -218,7 +349,33 @@ public class VacuumSimulatorApp extends Application {
     private void updateZoomLabel() {
         if (zoomLabel != null) {
             double percentage = (visualizationPane.getScale() / 10.0) * 100;
-            zoomLabel.setText(String.format("Zoom: %.0f%%", percentage));
+            zoomLabel.setText(String.format("%.0f%%", percentage));
+        }
+    }
+
+    /**
+     * Update right panel metrics to reflect latest state
+     */
+    private void updateInfoPanel() {
+        if (house == null || roomsValueLabel == null) {
+            return;
+        }
+
+        roomsValueLabel.setText(Integer.toString(house.getRooms().size()));
+        doorsValueLabel.setText(Integer.toString(house.getDoors().size()));
+        obstructionsValueLabel.setText(Integer.toString(house.getObstructions().size()));
+        totalAreaValueLabel.setText(String.format("%.1f ft²", house.getTotalArea()));
+        cleanableAreaValueLabel.setText(String.format("%.1f ft²", house.getCleanableArea()));
+        floorCoveringValueLabel.setText(house.getFloorCovering().getDisplayName());
+        seedValueLabel.setText(Long.toString(house.getSeed()));
+
+        validStateValueLabel.getStyleClass().removeAll("valid-state", "invalid-state");
+        if (house.isValid()) {
+            validStateValueLabel.setText("Valid");
+            validStateValueLabel.getStyleClass().add("valid-state");
+        } else {
+            validStateValueLabel.setText("Invalid");
+            validStateValueLabel.getStyleClass().add("invalid-state");
         }
     }
 
@@ -238,8 +395,108 @@ public class VacuumSimulatorApp extends Application {
         alert.setTitle("About");
         alert.setHeaderText("Robot Vacuum Simulator");
         alert.setContentText(
-                "Version 1.0\nBuilt with JavaFX\n\nTeam: Beatrice (Tech Lead), Ian, Malachi, Ray");
+                "Version 1.0\nBuilt with JavaFX\n\nTeam: Ian, Ray, Malachi, Vo, Beatrice");
         alert.showAndWait();
+    }
+
+    private void toggleControlsWindow() {
+        if (controlsStage != null && controlsStage.isShowing()) {
+            controlsStage.hide();
+            return;
+        }
+
+        if (controlsStage == null) {
+            controlsStage = createControlsWindow();
+        }
+
+        controlsStage.show();
+        controlsStage.toFront();
+    }
+
+    private Stage createControlsWindow() {
+        Stage stage = new Stage();
+        stage.initOwner(primaryStage);
+        stage.initModality(Modality.NONE);
+        stage.setTitle("Controls");
+        stage.setMinWidth(420);
+        stage.setMinHeight(320);
+
+        VBox rootBox = new VBox(12);
+        rootBox.setPadding(new Insets(16));
+        rootBox.getStyleClass().add("app-root");
+        rootBox.getStyleClass().add("info-panel");
+
+        Label titleLabel = new Label("Controls");
+        titleLabel.getStyleClass().add("panel-title");
+
+        VBox toolbarCard = new VBox(8);
+        toolbarCard.getStyleClass().add("info-card");
+        Label toolbarTitle = new Label("Toolbar");
+        toolbarTitle.getStyleClass().add("card-title");
+        Label toolbarText = new Label(
+                "- - and +: zoom out or in\n- 100%: reset zoom level\n- + Room: draw a new room on the canvas\n- Controls: open or hide this window\n- Dark / Light: switch the application theme");
+        toolbarText.setWrapText(true);
+        toolbarText.getStyleClass().add("hint-text");
+        toolbarCard.getChildren().addAll(toolbarTitle, toolbarText);
+
+        VBox canvasCard = new VBox(8);
+        canvasCard.getStyleClass().add("info-card");
+        Label canvasTitle = new Label("Canvas");
+        canvasTitle.getStyleClass().add("card-title");
+        Label canvasText = new Label(
+                "- Drag the background to pan\n- Hold Ctrl and use the mouse wheel to zoom\n- Click a room to select it\n- Drag room edge handles to resize in 1-foot increments\n- In + Room mode, click and drag to place a room\n- Select a room and click a dashed shared wall to add a door");
+        canvasText.setWrapText(true);
+        canvasText.getStyleClass().add("hint-text");
+        canvasCard.getChildren().addAll(canvasTitle, canvasText);
+
+        rootBox.getChildren().addAll(titleLabel, toolbarCard, canvasCard);
+
+        Scene scene = new Scene(rootBox, 440, 340);
+        URL cssUrl = getClass().getResource("/styles/simulator-theme.css");
+        if (cssUrl != null) {
+            scene.getStylesheets().add(cssUrl.toExternalForm());
+        }
+        updateControlsWindowTheme(root.getStyleClass().contains("dark-mode"), rootBox);
+
+        stage.setScene(scene);
+        return stage;
+    }
+
+    private void updateControlsWindowTheme(boolean darkMode) {
+        if (controlsStage == null || controlsStage.getScene() == null
+                || !(controlsStage.getScene().getRoot() instanceof VBox rootBox)) {
+            return;
+        }
+        updateControlsWindowTheme(darkMode, rootBox);
+    }
+
+    private void updateControlsWindowTheme(boolean darkMode, VBox rootBox) {
+        if (darkMode) {
+            if (!rootBox.getStyleClass().contains("dark-mode")) {
+                rootBox.getStyleClass().add("dark-mode");
+            }
+        } else {
+            rootBox.getStyleClass().remove("dark-mode");
+        }
+    }
+
+    private void promptAndRegenerateFromSeed() {
+        TextInputDialog dialog = new TextInputDialog(Long.toString(house.getSeed()));
+        dialog.setTitle("Regenerate From Seed");
+        dialog.setHeaderText("Generate a new floor plan from a seed");
+        dialog.setContentText("Seed:");
+
+        dialog.showAndWait().ifPresent(raw -> {
+            String value = raw == null ? "" : raw.trim();
+            try {
+                long seed = Long.parseLong(value);
+                house.setSeed(seed);
+                house.generateDefaultFloorPlan();
+                refreshUiAfterModelChange("Regenerated floor plan from seed " + seed, true, true);
+            } catch (NumberFormatException ex) {
+                updateStatus("Invalid seed. Please enter a 64-bit integer value.");
+            }
+        });
     }
 
     /**
@@ -289,80 +546,112 @@ public class VacuumSimulatorApp extends Application {
             h.addObstruction(couch);
             h.addObstruction(table);
         } else {
-            h.generateFloorPlan(7, 800.0, 2100.0);
+            h.generateDefaultFloorPlan();
         }
         return h;
+    }
+
+    private void handleHouseChanged() {
+        refreshUiAfterModelChange(null, false, true);
+    }
+
+    private void refreshUiAfterModelChange(String statusMessage, boolean clearSelection,
+            boolean rerender) {
+        if (clearSelection) {
+            visualizationPane.deselectRoom();
+        }
+        if (rerender) {
+            visualizationPane.render();
+        }
+        updateInfoPanel();
+        if (statusMessage != null && !statusMessage.isBlank()) {
+            updateStatus(statusMessage);
+        }
     }
 
     /**
      * Create info panel showing house details
      */
     private VBox createInfoPanel() {
-        VBox panel = new VBox(10);
-        panel.setPadding(new Insets(20));
-        panel.setStyle(
-                "-fx-background-color: #e8e8e8; -fx-border-color: #c0c0c0; -fx-border-width: 0 0 0 1;");
-        panel.setPrefWidth(250);
+        VBox panel = new VBox(12);
+        panel.setPadding(new Insets(16));
+        panel.setPrefWidth(300);
+        panel.setMinWidth(280);
+        panel.getStyleClass().add("info-panel");
 
-        // House info
-        Label titleLabel = new Label("House Information");
-        titleLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+        Label titleLabel = new Label("Simulation Overview");
+        titleLabel.getStyleClass().add("panel-title");
 
-        Label roomsLabel = new Label("Rooms: " + house.getRooms().size());
-        Label doorsLabel = new Label("Doors: " + house.getDoors().size());
-        Label obstLabel = new Label("Obstructions: " + house.getObstructions().size());
-        Label areaLabel = new Label(String.format("Total Area: %.1f ft²", house.getTotalArea()));
-        Label cleanableLabel =
-                new Label(String.format("Cleanable: %.1f ft²", house.getCleanableArea()));
-        Label coveringLabel = new Label("Floor: " + house.getFloorCovering().name());
-        Label validLabel = new Label("Valid: " + (house.isValid() ? "Yes" : "No"));
+        VBox houseCard = new VBox(10);
+        houseCard.getStyleClass().add("info-card");
+        Label houseCardTitle = new Label("House");
+        houseCardTitle.getStyleClass().add("card-title");
 
-        if (house.isValid()) {
-            validLabel.setStyle("-fx-text-fill: green; -fx-font-weight: bold;");
-        } else {
-            validLabel.setStyle("-fx-text-fill: red; -fx-font-weight: bold;");
-        }
+        GridPane houseGrid = new GridPane();
+        houseGrid.setHgap(10);
+        houseGrid.setVgap(8);
 
-        // Zoom info
-        zoomLabel = new Label("Zoom: 100%");
+        roomsValueLabel = createMetricValueLabel();
+        doorsValueLabel = createMetricValueLabel();
+        obstructionsValueLabel = createMetricValueLabel();
+        totalAreaValueLabel = createMetricValueLabel();
+        cleanableAreaValueLabel = createMetricValueLabel();
+        floorCoveringValueLabel = createMetricValueLabel();
+        seedValueLabel = createMetricValueLabel();
+        validStateValueLabel = createMetricValueLabel();
 
-        // View controls
-        Label viewLabel = new Label("View Controls");
-        viewLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
-        Label tipLabel =
-                new Label("• Drag to pan\n• Ctrl+Scroll to zoom\n• Hover rooms for highlight");
-        tipLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #666;");
+        addMetricRow(houseGrid, 0, "Rooms", roomsValueLabel);
+        addMetricRow(houseGrid, 1, "Doors", doorsValueLabel);
+        addMetricRow(houseGrid, 2, "Obstructions", obstructionsValueLabel);
+        addMetricRow(houseGrid, 3, "Total Area", totalAreaValueLabel);
+        addMetricRow(houseGrid, 4, "Cleanable", cleanableAreaValueLabel);
+        addMetricRow(houseGrid, 5, "Floor", floorCoveringValueLabel);
+        addMetricRow(houseGrid, 6, "Seed", seedValueLabel);
+        addMetricRow(houseGrid, 7, "State", validStateValueLabel);
+        houseCard.getChildren().addAll(houseCardTitle, houseGrid);
 
-        // Placeholder buttons (will implement later)
-        Button simToggleButton = new Button("Start Simulation");
-        simToggleButton.setPrefWidth(200);
+        VBox viewCard = new VBox(10);
+        viewCard.getStyleClass().add("info-card");
+        Label viewCardTitle = new Label("View");
+        viewCardTitle.getStyleClass().add("card-title");
+        GridPane viewGrid = new GridPane();
+        viewGrid.setHgap(10);
+        viewGrid.setVgap(8);
+        zoomLabel = createMetricValueLabel();
+        addMetricRow(viewGrid, 0, "Zoom", zoomLabel);
+        viewCard.getChildren().addAll(viewCardTitle, viewGrid);
 
+        VBox actionsCard = new VBox(10);
+        actionsCard.getStyleClass().add("info-card");
+        Label actionsCardTitle = new Label("Simulation");
+        actionsCardTitle.getStyleClass().add("card-title");
 
+        Button startButton = new Button("Start Simulation");
+        Button stopButton = new Button("Stop Simulation");
+        startButton.getStyleClass().add("shell-button");
+        stopButton.getStyleClass().add("shell-button");
+        startButton.setMaxWidth(Double.MAX_VALUE);
+        stopButton.setMaxWidth(Double.MAX_VALUE);
+        startButton.setDisable(true);
+        stopButton.setDisable(true);
+        actionsCard.getChildren().addAll(actionsCardTitle, startButton, stopButton);
 
-        EventHandler<ActionEvent> toggleSim = new EventHandler<ActionEvent>() {
-            public void handle(ActionEvent e) {
-                if (simTimer.isActive()) {
-                    simToggleButton.setText("Start simulation");
-                } else {
-                    simToggleButton.setText("Stop simulation");
-                }
-                simTimer.toggleSimTimer();
-
-            }
-        };
-        simToggleButton.setOnAction(toggleSim);
-
-
-
-        Separator sep1 = new Separator();
-        Separator sep2 = new Separator();
-        Separator sep3 = new Separator();
-
-        panel.getChildren().addAll(titleLabel, roomsLabel, doorsLabel, obstLabel, areaLabel,
-                cleanableLabel, coveringLabel, validLabel, sep1, zoomLabel, sep2, viewLabel,
-                tipLabel, sep3, simToggleButton);
-
+        panel.getChildren().addAll(titleLabel, houseCard, viewCard, actionsCard);
         return panel;
+    }
+
+    private Label createMetricValueLabel() {
+        Label value = new Label("--");
+        value.getStyleClass().add("metric-value");
+        return value;
+    }
+
+    private void addMetricRow(GridPane grid, int row, String name, Label valueLabel) {
+        Label nameLabel = new Label(name);
+        nameLabel.getStyleClass().add("metric-label");
+        GridPane.setHgrow(valueLabel, Priority.ALWAYS);
+        grid.add(nameLabel, 0, row);
+        grid.add(valueLabel, 1, row);
     }
 
     public static void main(String[] args) {
