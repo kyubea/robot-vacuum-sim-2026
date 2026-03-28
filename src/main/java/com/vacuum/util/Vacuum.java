@@ -1,10 +1,8 @@
 package com.vacuum.util;
 
-import com.vacuum.model.VacuumConfig;
 import com.vacuum.model.Door;
 import com.vacuum.model.Door.Orientation;
 import com.vacuum.model.Room;
-import javafx.geometry.Rectangle2D;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.paint.Color;
