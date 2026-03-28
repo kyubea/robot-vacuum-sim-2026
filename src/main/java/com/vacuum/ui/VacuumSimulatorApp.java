@@ -45,7 +45,7 @@ public class VacuumSimulatorApp extends Application {
     public void start(Stage primaryStage) {
         // Create default house (Req 1.2: valid default state)
         house = createDefaultHouse();
-        vacuum = new Vacuum(25, 12);
+        vacuum = new Vacuum(20, 11.5);
         vacuum.createWallColliders(house.getRooms());
 
         // Create UI components

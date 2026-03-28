@@ -3,9 +3,8 @@ package com.vacuum.util;
 import com.vacuum.ui.*;
 import javafx.animation.AnimationTimer;
 
-/**
- * Manages the simulation lifecycle (start, stop, pause) and drives the AnimationTimer game loop.
- * Decoupled from VacuumSimulatorApp UI logic.
+/*
+ * class managing the animationTimer for simulation starts/stops
  */
 public class simulationTimer {
 
@@ -26,7 +25,8 @@ public class simulationTimer {
             public void handle(long currentTime) {
                 if (prevTime > 0) {
                     double deltaTime = (currentTime - prevTime) / 1_000_000_000.0;
-                    vacuum.update(deltaTime);
+                    vacuum.update(deltaTime, visualizationPane.getOffsetX(),
+                            visualizationPane.getOffsetY(), visualizationPane.getScale());
                 }
                 visualizationPane.render();
                 prevTime = currentTime;

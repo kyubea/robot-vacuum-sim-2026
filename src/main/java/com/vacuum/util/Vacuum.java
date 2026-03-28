@@ -13,8 +13,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-
-
 public class Vacuum {
     public double x;
     private double y;
@@ -41,13 +39,11 @@ public class Vacuum {
         this.orientation = 0;
         image = new Image(getClass().getResourceAsStream("/vacuumRotated.png"));
         imageView = new ImageView();
+        imageView.setImage(image);
         wallColliders = new ArrayList<Rectangle>();
-
-
     }
 
-
-    // move the vacuum using its x y coordinates
+    // old movement function, delete this after code has been merged if it isn't being used
     public void move(double dx, double dy) {
         this.x += dx;
         this.y += dy;
@@ -62,9 +58,10 @@ public class Vacuum {
 
     }
 
-
-    // move the vacuum forward based on its local direction and time that has passed since last
-    // frame
+    /*
+     * move the vacuum forward based on its local direction and time that has passed since last
+     * frame
+     */
     public void forward(double speed, double deltaTime) {
         double distance = speed * deltaTime;
         double radians = Math.toRadians(orientation);
@@ -79,11 +76,11 @@ public class Vacuum {
     public void rotate(double rotationSpeed, double deltaTime) {
         double deltaAngle = rotationSpeed * deltaTime;
         this.orientation += deltaAngle;
-        // Keep angle in 0-360 range
+        // Keeps angle in 0-360 range
         this.orientation = this.orientation % 360;
     }
 
-    public void update(double deltaTime) {
+    public void update(double deltaTime, double offsetX, double offsetY, double screenScale) {
         this.battery -= BATTERY_DRAIN_RATE * deltaTime;
         if (this.battery > 0) {
             double rollbackX = this.x;
@@ -103,7 +100,7 @@ public class Vacuum {
                     break;
 
             }
-            testCollision(rollbackX, rollbackY);
+            testCollision(rollbackX, rollbackY, offsetX, offsetY, screenScale);
         } else {
             System.out.println("Battery has run out");
         }
@@ -128,29 +125,30 @@ public class Vacuum {
 
     }
 
-    private void testCollision(double rollbackX, double rollbackY) {
-        Rectangle vacBounds = this.getBounds(0, 0, 1);
-        double vx = this.x;
-        double vy = this.y;
-        double vw = VACUUM_SIZE;
-        double vh = VACUUM_SIZE;
-
-        for (Rectangle w : wallColliders) {
-            double wx = w.getX();
-            double wy = w.getY();
-            double ww = w.getWidth();
-            double wh = w.getHeight();
-
-            boolean overlaps = vx < wx + ww && vx + vw > wx && vy < wy + wh && vy + vh > wy;
-
-            if (overlaps) {
-                this.x = rollbackX;
-                this.y = rollbackY;
+    private void testCollision(double rollbackX, double rollbackY, double offsetX, double offsetY,
+            double screenScale) {
+        // scale vacuum hitbox to visually match screen scale
+        Rectangle scaledHitbox = new Rectangle();
+        scaledHitbox.setX(100 + x * screenScale);
+        scaledHitbox.setY(100 + y * screenScale);
+        scaledHitbox.setWidth(VACUUM_SIZE * screenScale);
+        scaledHitbox.setHeight(VACUUM_SIZE * screenScale);
+        for (Rectangle wall : wallColliders) {
+            // scale walls to visually match screen scale
+            Rectangle scaledWall = new Rectangle();
+            scaledWall.setX(offsetX + wall.getX() * screenScale);
+            scaledWall.setY(offsetY + wall.getY() * screenScale);
+            scaledWall.setWidth(wall.getWidth() * screenScale);
+            scaledWall.setHeight(wall.getHeight() * screenScale);
+            // check for collision at world size
+            if (scaledHitbox.intersects(scaledWall.getBoundsInParent())) {
+                x = rollbackX;
+                y = rollbackY;
                 break;
             }
         }
-
     }
+
 
     public double getX() {
         return x;
@@ -176,23 +174,16 @@ public class Vacuum {
         return VACUUM_SIZE;
     }
 
-    public Rectangle getBounds(double offsetX, double offsetY, double scale) {
-        Rectangle rect = new Rectangle();
-        rect.setX(offsetX + this.x * scale);
-        rect.setY(offsetY + this.y * scale);
-        rect.setWidth(VACUUM_SIZE * scale);
-        rect.setHeight(VACUUM_SIZE * scale);
 
-        // debug visuals
-        rect.setFill(Color.TRANSPARENT);
-        rect.setStroke(Color.BLACK);
-        rect.setStrokeWidth(2.0);
-        return rect;
-    }
 
-    public void createWallColliders(List<Room> rooms) {
+    public void createWallColliders(List<Room> rooms) { // create walls of the house's rooms
         this.wallColliders = new ArrayList<Rectangle>();
         for (Room room : rooms) {
+
+            /*
+             * arrays representing a number line for the left to right side of each of the house's
+             * walls
+             */
             ArrayList<Double> leftInterrupts = new ArrayList<Double>();
             ArrayList<Double> rightInterrupts = new ArrayList<Double>();
             ArrayList<Double> topInterrupts = new ArrayList<Double>();
@@ -207,6 +198,11 @@ public class Vacuum {
             bottomInterrupts.add(room.getMaxX());
 
             for (Door door : room.getDoors()) {
+                /*
+                 * get door orientation to find hort/vertical orientation, then find where the door
+                 * overrlaps /w room. On success use the door's position & width/height to split up
+                 * the respective room wall number line
+                 */
                 if (door.getOrientation() == Orientation.HORIZONTAL) {
                     if (door.getY() == room.getY()) {
                         topInterrupts.add(door.getX());
@@ -229,7 +225,6 @@ public class Vacuum {
                         System.err.println(door.getX());
                         System.err.println(room.getMaxX());
 
-
                     }
                 } else {
                     System.err.println("error getting door orientation");
@@ -240,6 +235,11 @@ public class Vacuum {
             Collections.sort(rightInterrupts);
             Collections.sort(topInterrupts);
             Collections.sort(bottomInterrupts);
+
+            /*
+             * get 2 numbers of array as rectangle span unless this room index is on the other side
+             * of an already created wall
+             */
 
             for (int i = 0; i < leftInterrupts.size(); i += 2)
                 addColliderIfUnique(room.getX(), leftInterrupts.get(i), 0.1,

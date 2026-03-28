@@ -12,6 +12,7 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.transform.Scale;
 import javafx.scene.shape.Line;
 import javafx.scene.shape.Circle;
 import javafx.scene.image.Image;
@@ -144,7 +145,6 @@ public class HouseVisualizationPane extends Pane {
         renderDoors();
         renderObstructions();
         renderVacuum();
-        renderColliders();
 
         if (selectedRoomModel != null) {
             updateSelectedRoom();
@@ -391,39 +391,47 @@ public class HouseVisualizationPane extends Pane {
         }
     }
 
-
-
     private void renderVacuum() {
-        Image vImage = vacuum.getImage();
         ImageView vImageView = vacuum.getImageView();
-
-        double screenX = offsetX + vacuum.getX() * scale;
-        double screenY = offsetY + vacuum.getY() * scale;
-        vImageView.setImage(vImage);
-        vImageView.setPreserveRatio(true);
+        vImageView.setX(offsetX + vacuum.getX() * scale);
+        vImageView.setY(offsetY + vacuum.getY() * scale);
         vImageView.setFitWidth(vacuum.getSize() * scale);
-        vImageView.relocate(screenX, screenY);
+        vImageView.setFitHeight(vacuum.getSize() * scale);
         vImageView.setRotate(this.vacuum.getOrientation());
         this.getChildren().add(vImageView);
     }
 
-    private void renderColliders() {
-        Rectangle vacBounds = vacuum.getBounds(offsetX, offsetY, scale);
-        this.getChildren().add(vacBounds);
-
-        for (Rectangle rect : vacuum.getWallColliders()) {
-            Rectangle b = new Rectangle();
-            b.setX(offsetX + rect.getX() * scale);
-            b.setY(offsetY + rect.getY() * scale);
-            b.setWidth(rect.getWidth() * scale);
-            b.setHeight(rect.getHeight() * scale);
-            b.setFill(Color.RED);
-            b.setStroke(Color.RED);
-            b.setStrokeWidth(1);
-            this.getChildren().add(b);
+    private void renderColliders() { // render colliders for debugging
+        Rectangle vHitbox = new Rectangle();
+        vHitbox.setX(offsetX + vacuum.getX() * scale);
+        vHitbox.setY(offsetY + vacuum.getY() * scale);
+        vHitbox.setWidth(vacuum.getSize() * scale);
+        vHitbox.setHeight(vacuum.getSize() * scale);
+        vHitbox.setRotate(vacuum.getOrientation());
+        vHitbox.setFill(Color.TRANSPARENT);
+        vHitbox.setStroke(Color.BLACK);
+        vHitbox.setStrokeWidth(1);
+        this.getChildren().add(vHitbox);
+        for (Rectangle houseWall : vacuum.getWallColliders()) {
+            Rectangle wallRender = new Rectangle();
+            wallRender.setX(offsetX + houseWall.getX() * scale);
+            wallRender.setY(offsetY + houseWall.getY() * scale);
+            wallRender.setWidth(houseWall.getWidth() * scale);
+            wallRender.setHeight(houseWall.getHeight() * scale);
+            wallRender.setFill(Color.RED);
+            wallRender.setStroke(Color.RED);
+            wallRender.setStrokeWidth(1);
+            this.getChildren().add(wallRender);
         }
     }
 
+    public double getOffsetX() {
+        return offsetX;
+    }
+
+    public double getOffsetY() {
+        return offsetY;
+    }
 
     public void setScale(double scale) {
         this.scale = scale;
