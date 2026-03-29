@@ -235,6 +235,8 @@ public class HouseVisualizationPane extends Pane {
 
     public void setVacuum(Vacuum vacuum) {
         this.vacuum = vacuum;
+    }
+
     public void setStatusMessageHandler(Consumer<String> statusMessageHandler) {
         this.statusMessageHandler = statusMessageHandler;
     }
@@ -873,14 +875,18 @@ public class HouseVisualizationPane extends Pane {
 
     private Color getFloorCoveringColor(House.FloorCovering covering) {
         switch (covering) {
-            case HARD:
+            case HARDWOOD:
                 return Color.WHEAT;
-            case LOOP_PILE:
+            case TILE:
                 return Color.SANDYBROWN;
-            case CUT_PILE:
+            case LAMINATE:
                 return Color.TAN;
-            case FRIEZE:
+            case BERBERPILE:
                 return Color.BURLYWOOD;
+            case CUTPILE:
+                return Color.LIGHTYELLOW;
+            case CALIFORNIASHAG:
+                return Color.LIGHTGRAY;
             default:
                 return Color.LIGHTGRAY;
         }

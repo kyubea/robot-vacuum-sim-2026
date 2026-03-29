@@ -313,11 +313,38 @@ public class VacuumSimulatorApp extends Application {
         MenuItem resetItem = new MenuItem("Reset");
         MenuItem regenerateSeedItem = new MenuItem("Regenerate From Seed...");
 
-        startItem.setDisable(true); // TODO: implement
+        startItem.setOnAction(e -> {
+            simTimer.start(100, 1);
+            startItem.setDisable(true);
+            stopItem.setDisable(false);
+            pauseItem.setDisable(false);
+        });
+        stopItem.setOnAction(e -> {
+            simTimer.stop();
+            startItem.setDisable(false);
+            stopItem.setDisable(true);
+            pauseItem.setDisable(true);
+            visualizationPane.render();
+        });
+        pauseItem.setOnAction(e -> {
+            simTimer.stop();
+            startItem.setDisable(false);
+            stopItem.setDisable(true);
+            pauseItem.setDisable(true);
+        });
+        resetItem.setOnAction(e -> {
+            simTimer.stop();
+            vacuum.reset(100, 1);
+            visualizationPane.render();
+            startItem.setDisable(false);
+            stopItem.setDisable(true);
+            pauseItem.setDisable(true);
+        });
+        regenerateSeedItem.setOnAction(e -> promptAndRegenerateFromSeed());
+
+        startItem.setDisable(false);
         stopItem.setDisable(true);
         pauseItem.setDisable(true);
-        resetItem.setDisable(true);
-        regenerateSeedItem.setOnAction(e -> promptAndRegenerateFromSeed());
 
         simMenu.getItems().addAll(startItem, stopItem, pauseItem, new SeparatorMenuItem(),
                 regenerateSeedItem, resetItem);
@@ -512,8 +539,8 @@ public class VacuumSimulatorApp extends Application {
          * particular value.
          */
         // long seed = 42L; // any constant seed is deterministic
-        // long seed = System.currentTimeMillis(); // moving target is not deterministic
-        long seed = 1770586878168L; // debug placement problems by capturing the seed that failed
+        long seed = System.currentTimeMillis(); // moving target is not deterministic
+        // long seed = 1770586878168L; // debug placement problems by capturing the seed that failed
 
         System.out.printf("Generating house floor plan using seed = %d%n", seed);
         House h = new House(seed);
@@ -560,6 +587,8 @@ public class VacuumSimulatorApp extends Application {
         if (clearSelection) {
             visualizationPane.deselectRoom();
         }
+        // Recreate vacuum wall colliders for the new house layout
+        vacuum.createWallColliders(house.getRooms());
         if (rerender) {
             visualizationPane.render();
         }
@@ -632,7 +661,20 @@ public class VacuumSimulatorApp extends Application {
         stopButton.getStyleClass().add("shell-button");
         startButton.setMaxWidth(Double.MAX_VALUE);
         stopButton.setMaxWidth(Double.MAX_VALUE);
-        startButton.setDisable(true);
+
+        startButton.setOnAction(e -> {
+            simTimer.start(100, 1);
+            startButton.setDisable(true);
+            stopButton.setDisable(false);
+        });
+        stopButton.setOnAction(e -> {
+            simTimer.stop();
+            startButton.setDisable(false);
+            stopButton.setDisable(true);
+            visualizationPane.render();
+        });
+
+        startButton.setDisable(false);
         stopButton.setDisable(true);
         actionsCard.getChildren().addAll(actionsCardTitle, startButton, stopButton);
 
