@@ -1,7 +1,11 @@
 package com.vacuum.ui;
 
 import com.vacuum.model.*;
+import com.vacuum.model.Door.Orientation;
+import com.vacuum.util.Vacuum;
+import com.vacuum.util.simulationTimer;
 import javafx.application.Application;
+import javafx.event.ActionEvent;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -14,6 +18,16 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.stage.Stage;
+import javafx.event.EventHandler;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import org.w3c.dom.css.Rect;
+import javafx.scene.shape.Rectangle;
+
+
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import java.net.URL;
@@ -37,6 +51,8 @@ public class VacuumSimulatorApp extends Application {
     private Label statusLabel;
     private Label zoomLabel;
 
+    private Vacuum vacuum;
+    private simulationTimer simTimer;
     private Label roomsValueLabel;
     private Label doorsValueLabel;
     private Label obstructionsValueLabel;
@@ -52,6 +68,8 @@ public class VacuumSimulatorApp extends Application {
 
         // Create default house (Req 1.2: valid default state)
         house = createDefaultHouse();
+        vacuum = new Vacuum(20, 11.5);
+        vacuum.createWallColliders(house.getRooms());
 
         // Create app shell
         root = new BorderPane();
@@ -68,9 +86,11 @@ public class VacuumSimulatorApp extends Application {
 
         // Center: scrollable, pannable visualization
         visualizationPane = new HouseVisualizationPane();
+        visualizationPane.setVacuum(vacuum);
         visualizationPane.setStatusMessageHandler(this::updateStatus);
         visualizationPane.setHouseChangedHandler(this::handleHouseChanged);
         visualizationPane.setHouse(house);
+        simTimer = new simulationTimer(vacuum, visualizationPane);
 
         scrollPane = new ScrollPane(visualizationPane);
         scrollPane.setPannable(true); // Enable panning by dragging
@@ -102,6 +122,8 @@ public class VacuumSimulatorApp extends Application {
         // Right: info panel
         VBox infoPanel = createInfoPanel();
         root.setRight(infoPanel);
+
+
 
         // Bottom: status bar
         root.setBottom(createStatusBar());
@@ -291,11 +313,38 @@ public class VacuumSimulatorApp extends Application {
         MenuItem resetItem = new MenuItem("Reset");
         MenuItem regenerateSeedItem = new MenuItem("Regenerate From Seed...");
 
-        startItem.setDisable(true); // TODO: implement
+        startItem.setOnAction(e -> {
+            simTimer.start(100, 1);
+            startItem.setDisable(true);
+            stopItem.setDisable(false);
+            pauseItem.setDisable(false);
+        });
+        stopItem.setOnAction(e -> {
+            simTimer.stop();
+            startItem.setDisable(false);
+            stopItem.setDisable(true);
+            pauseItem.setDisable(true);
+            visualizationPane.render();
+        });
+        pauseItem.setOnAction(e -> {
+            simTimer.stop();
+            startItem.setDisable(false);
+            stopItem.setDisable(true);
+            pauseItem.setDisable(true);
+        });
+        resetItem.setOnAction(e -> {
+            simTimer.stop();
+            vacuum.reset(100, 1);
+            visualizationPane.render();
+            startItem.setDisable(false);
+            stopItem.setDisable(true);
+            pauseItem.setDisable(true);
+        });
+        regenerateSeedItem.setOnAction(e -> promptAndRegenerateFromSeed());
+
+        startItem.setDisable(false);
         stopItem.setDisable(true);
         pauseItem.setDisable(true);
-        resetItem.setDisable(true);
-        regenerateSeedItem.setOnAction(e -> promptAndRegenerateFromSeed());
 
         simMenu.getItems().addAll(startItem, stopItem, pauseItem, new SeparatorMenuItem(),
                 regenerateSeedItem, resetItem);
@@ -538,6 +587,8 @@ public class VacuumSimulatorApp extends Application {
         if (clearSelection) {
             visualizationPane.deselectRoom();
         }
+        // Recreate vacuum wall colliders for the new house layout
+        vacuum.createWallColliders(house.getRooms());
         if (rerender) {
             visualizationPane.render();
         }
@@ -610,7 +661,20 @@ public class VacuumSimulatorApp extends Application {
         stopButton.getStyleClass().add("shell-button");
         startButton.setMaxWidth(Double.MAX_VALUE);
         stopButton.setMaxWidth(Double.MAX_VALUE);
-        startButton.setDisable(true);
+
+        startButton.setOnAction(e -> {
+            simTimer.start(100, 1);
+            startButton.setDisable(true);
+            stopButton.setDisable(false);
+        });
+        stopButton.setOnAction(e -> {
+            simTimer.stop();
+            startButton.setDisable(false);
+            stopButton.setDisable(true);
+            visualizationPane.render();
+        });
+
+        startButton.setDisable(false);
         stopButton.setDisable(true);
         actionsCard.getChildren().addAll(actionsCardTitle, startButton, stopButton);
 
