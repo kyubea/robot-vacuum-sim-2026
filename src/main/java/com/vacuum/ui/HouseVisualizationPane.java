@@ -1,6 +1,7 @@
 package com.vacuum.ui;
 
 import com.vacuum.model.*;
+import com.vacuum.util.Vacuum;
 import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
 import javafx.scene.Cursor;
@@ -13,8 +14,13 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.ImagePattern;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.transform.Scale;
 import javafx.scene.shape.Line;
 import javafx.scene.shape.Circle;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import java.util.ArrayList;
+import java.util.List;
 import javafx.scene.shape.StrokeLineCap;
 import java.util.ArrayList;
 import java.util.List;
@@ -63,6 +69,7 @@ public class HouseVisualizationPane extends Pane {
     private double dragStartX;
     private double dragStartY;
     private double originalX, originalY, originalWidth, originalHeight;
+    public Vacuum vacuum;
     private String lastResizeWarning;
     private boolean resizeAppliedDuringDrag;
 
@@ -226,6 +233,10 @@ public class HouseVisualizationPane extends Pane {
         render();
     }
 
+    public void setVacuum(Vacuum vacuum) {
+        this.vacuum = vacuum;
+    }
+
     public void setStatusMessageHandler(Consumer<String> statusMessageHandler) {
         this.statusMessageHandler = statusMessageHandler;
     }
@@ -266,6 +277,7 @@ public class HouseVisualizationPane extends Pane {
         selectedRoomRect = null;
         renderRooms();
         renderObstructions();
+        renderVacuum();
         renderDoors();
 
         if (selectedRoomModel != null) {
@@ -859,6 +871,67 @@ public class HouseVisualizationPane extends Pane {
 
             this.getChildren().add(rect);
         }
+    }
+
+    private Color getFloorCoveringColor(House.FloorCovering covering) {
+        switch (covering) {
+            case HARDWOOD:
+                return Color.WHEAT;
+            case TILE:
+                return Color.SANDYBROWN;
+            case LAMINATE:
+                return Color.TAN;
+            case BERBERPILE:
+                return Color.BURLYWOOD;
+            case CUTPILE:
+                return Color.LIGHTYELLOW;
+            case CALIFORNIASHAG:
+                return Color.LIGHTGRAY;
+            default:
+                return Color.LIGHTGRAY;
+        }
+    }
+
+    private void renderVacuum() {
+        ImageView vImageView = vacuum.getImageView();
+        vImageView.setX(offsetX + vacuum.getX() * scale);
+        vImageView.setY(offsetY + vacuum.getY() * scale);
+        vImageView.setFitWidth(vacuum.getSize() * scale);
+        vImageView.setFitHeight(vacuum.getSize() * scale);
+        vImageView.setRotate(this.vacuum.getOrientation());
+        this.getChildren().add(vImageView);
+    }
+
+    private void renderColliders() { // render colliders for debugging
+        Rectangle vHitbox = new Rectangle();
+        vHitbox.setX(offsetX + vacuum.getX() * scale);
+        vHitbox.setY(offsetY + vacuum.getY() * scale);
+        vHitbox.setWidth(vacuum.getSize() * scale);
+        vHitbox.setHeight(vacuum.getSize() * scale);
+        vHitbox.setRotate(vacuum.getOrientation());
+        vHitbox.setFill(Color.TRANSPARENT);
+        vHitbox.setStroke(Color.BLACK);
+        vHitbox.setStrokeWidth(1);
+        this.getChildren().add(vHitbox);
+        for (Rectangle houseWall : vacuum.getWallColliders()) {
+            Rectangle wallRender = new Rectangle();
+            wallRender.setX(offsetX + houseWall.getX() * scale);
+            wallRender.setY(offsetY + houseWall.getY() * scale);
+            wallRender.setWidth(houseWall.getWidth() * scale);
+            wallRender.setHeight(houseWall.getHeight() * scale);
+            wallRender.setFill(Color.RED);
+            wallRender.setStroke(Color.RED);
+            wallRender.setStrokeWidth(1);
+            this.getChildren().add(wallRender);
+        }
+    }
+
+    public double getOffsetX() {
+        return offsetX;
+    }
+
+    public double getOffsetY() {
+        return offsetY;
     }
 
     public void setScale(double scale) {
