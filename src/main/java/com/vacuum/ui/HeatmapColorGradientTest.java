@@ -7,8 +7,8 @@ import java.awt.Color;
 
 public class HeatmapColorGradientTest {
     /**
-     * // Make the color gradient from 0 (unclean) blue to 1.00 (fully clean) cyan Color minColor =
-     * Color.BLUE; Color maxColor = Color.CYAN; int steps = 100;
+     * // Make the color gradient from 0 (unclean) blue to 1.00 (fully clean) custom orange Color
+     * minColor = Color.BLUE; Color maxColor = Color.CYAN; int steps = 100;
      * 
      * // As parts of the floor get more or less clean, the color gets +0.01 in the green (closer to
      * cyan)
@@ -19,8 +19,8 @@ public class HeatmapColorGradientTest {
      * the slider
      */
 
-    Color minColor = Color.BLUE; // (R, G, B) = (0.0, 0.0, 1.0), this is the "fully dirty" color
-    Color maxColor = Color.CYAN; // (R, G, B) = (0.0, 1.0, 1.0), this is the "fully clean" color
+    Color minColor = Color.BLUE; // (R, G, B) = (0, 0, 255), this is the "fully dirty" color
+    Color maxColor = new Color(255, 153, 0); // a custom orange color, the "fully clean" color
 
     public Color interpColor(double value, Color minColor, Color maxColor) {
         value = Math.max(0, Math.min(1, value)); // value comes from the floor efficiency
@@ -30,7 +30,7 @@ public class HeatmapColorGradientTest {
         int b = (int) (minColor.getBlue() + (maxColor.getBlue() - minColor.getBlue()) * value);
 
         return new Color(r, g, b);
-        // Really it is just +0.01 or -0.01 in getGreen() for each interpolation
+        // Should return colors for "efficiency%" clean
     }
 
     // Get value from data table, maybe use the grid built into the UI visualization?
