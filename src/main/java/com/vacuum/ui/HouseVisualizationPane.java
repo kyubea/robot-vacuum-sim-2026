@@ -279,6 +279,7 @@ public class HouseVisualizationPane extends Pane {
         renderObstructions();
         renderVacuum();
         renderDoors();
+        renderColliders();
 
         if (selectedRoomModel != null) {
             if (selectedRoomRect != null) {
@@ -903,16 +904,8 @@ public class HouseVisualizationPane extends Pane {
     }
 
     private void renderColliders() { // render colliders for debugging
-        Rectangle vHitbox = new Rectangle();
-        vHitbox.setX(offsetX + vacuum.getX() * scale);
-        vHitbox.setY(offsetY + vacuum.getY() * scale);
-        vHitbox.setWidth(vacuum.getSize() * scale);
-        vHitbox.setHeight(vacuum.getSize() * scale);
-        vHitbox.setRotate(vacuum.getOrientation());
-        vHitbox.setFill(Color.TRANSPARENT);
-        vHitbox.setStroke(Color.BLACK);
-        vHitbox.setStrokeWidth(1);
-        this.getChildren().add(vHitbox);
+
+        this.getChildren().add(vacuum.getHitbox());
         for (Rectangle houseWall : vacuum.getWallColliders()) {
             Rectangle wallRender = new Rectangle();
             wallRender.setX(offsetX + houseWall.getX() * scale);

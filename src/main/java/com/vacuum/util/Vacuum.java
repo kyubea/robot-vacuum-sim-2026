@@ -6,7 +6,9 @@ import com.vacuum.model.Room;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.shape.Sphere;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -25,6 +27,7 @@ public class Vacuum {
     private Image image;
     private ImageView imageView;
     private List<Rectangle> wallColliders;
+    private Circle hitbox = new Circle();
 
     private static final double BATTERY_DRAIN_RATE = 5; // percentage per second
     private static final double VACUUM_SIZE = 2;
@@ -39,6 +42,10 @@ public class Vacuum {
         imageView = new ImageView();
         imageView.setImage(image);
         wallColliders = new ArrayList<Rectangle>();
+        hitbox.setFill(Color.TRANSPARENT);
+        hitbox.setStroke(Color.PURPLE);
+        hitbox.setStrokeWidth(1);
+
     }
 
     // old movement function, delete this after code has been merged if it isn't being used
@@ -106,8 +113,8 @@ public class Vacuum {
 
     private void alg1(double deltaTime) {
         // placeholder movement alg, replace
-        this.forward(10, deltaTime);
-        // this.rotate(30, deltaTime);
+        this.forward(18, deltaTime);
+        this.rotate(30, deltaTime);
 
     }
 
@@ -125,12 +132,12 @@ public class Vacuum {
 
     private void testCollision(double rollbackX, double rollbackY, double offsetX, double offsetY,
             double screenScale) {
+        double screenSize = VACUUM_SIZE * screenScale;
+        double half = screenSize / 2;
         // scale vacuum hitbox to visually match screen scale
-        Rectangle scaledHitbox = new Rectangle();
-        scaledHitbox.setX(100 + x * screenScale);
-        scaledHitbox.setY(100 + y * screenScale);
-        scaledHitbox.setWidth(VACUUM_SIZE * screenScale);
-        scaledHitbox.setHeight(VACUUM_SIZE * screenScale);
+        hitbox.setCenterX(offsetX + x * screenScale + half);
+        hitbox.setCenterY(offsetY + y * screenScale + half);
+        hitbox.setRadius(half);
         for (Rectangle wall : wallColliders) {
             // scale walls to visually match screen scale
             Rectangle scaledWall = new Rectangle();
@@ -139,7 +146,7 @@ public class Vacuum {
             scaledWall.setWidth(wall.getWidth() * screenScale);
             scaledWall.setHeight(wall.getHeight() * screenScale);
             // check for collision at world size
-            if (scaledHitbox.intersects(scaledWall.getBoundsInParent())) {
+            if (hitbox.intersects(scaledWall.getBoundsInParent())) {
                 x = rollbackX;
                 y = rollbackY;
                 break;
@@ -170,6 +177,10 @@ public class Vacuum {
 
     public double getSize() {
         return VACUUM_SIZE;
+    }
+
+    public Circle getHitbox() {
+        return hitbox;
     }
 
 

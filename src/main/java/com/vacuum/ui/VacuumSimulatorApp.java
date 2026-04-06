@@ -68,7 +68,7 @@ public class VacuumSimulatorApp extends Application {
 
         // Create default house (Req 1.2: valid default state)
         house = createDefaultHouse();
-        vacuum = new Vacuum(20, 11.5);
+        vacuum = new Vacuum(43, 20);
         vacuum.createWallColliders(house.getRooms());
 
         // Create app shell
@@ -539,8 +539,8 @@ public class VacuumSimulatorApp extends Application {
          * particular value.
          */
         // long seed = 42L; // any constant seed is deterministic
-        long seed = System.currentTimeMillis(); // moving target is not deterministic
-        // long seed = 1770586878168L; // debug placement problems by capturing the seed that failed
+        // long seed = 0.0; //System.currentTimeMillis(); // moving target is not deterministic
+        long seed = 0; // debug placement problems by capturing the seed that failed
 
         System.out.printf("Generating house floor plan using seed = %d%n", seed);
         House h = new House(seed);
@@ -661,6 +661,10 @@ public class VacuumSimulatorApp extends Application {
         stopButton.getStyleClass().add("shell-button");
         startButton.setMaxWidth(Double.MAX_VALUE);
         stopButton.setMaxWidth(Double.MAX_VALUE);
+        Button timeButton = new Button("Timespeed: x1");
+        timeButton.getStyleClass().add("shell-button");
+        timeButton.setMaxWidth(Double.MAX_VALUE);
+
 
         startButton.setOnAction(e -> {
             simTimer.start(100, 1);
@@ -673,10 +677,22 @@ public class VacuumSimulatorApp extends Application {
             stopButton.setDisable(true);
             visualizationPane.render();
         });
+        timeButton.setOnAction(e -> {
+            if (simTimer.getTimescale() == 1.0) {
+                timeButton.setText("Timespeed: x5");
+                simTimer.setTimeScale(5);
 
+            } else if (simTimer.getTimescale() == 5.0) {
+                timeButton.setText("Timespeed: x50");
+                simTimer.setTimeScale(50);
+            } else {
+                timeButton.setText("Timespeed: x1");
+                simTimer.setTimeScale(1);
+            }
+        });
         startButton.setDisable(false);
         stopButton.setDisable(true);
-        actionsCard.getChildren().addAll(actionsCardTitle, startButton, stopButton);
+        actionsCard.getChildren().addAll(actionsCardTitle, startButton, stopButton, timeButton);
 
         panel.getChildren().addAll(titleLabel, houseCard, viewCard, actionsCard);
         return panel;

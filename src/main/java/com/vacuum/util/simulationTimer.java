@@ -14,7 +14,7 @@ public class simulationTimer {
 
     private boolean simActive = false;
     private long prevTime = -1;
-
+    private double timeScale = 1;
 
     public simulationTimer(Vacuum vacuum, HouseVisualizationPane visualizationPane) {
         this.vacuum = vacuum;
@@ -25,10 +25,15 @@ public class simulationTimer {
             public void handle(long currentTime) {
                 if (prevTime > 0) {
                     double deltaTime = (currentTime - prevTime) / 1_000_000_000.0;
-                    vacuum.update(deltaTime, visualizationPane.getOffsetX(),
-                            visualizationPane.getOffsetY(), visualizationPane.getScale());
+                    for (int i = 0; i < timeScale; i++) {
+                        vacuum.update(deltaTime, visualizationPane.getOffsetX(),
+                                visualizationPane.getOffsetY(), visualizationPane.getScale());
+                        visualizationPane.render();
+
+                    }
+
+
                 }
-                visualizationPane.render();
                 prevTime = currentTime;
             }
         };
@@ -49,8 +54,6 @@ public class simulationTimer {
         }
     }
 
-
-
     public void stop() {
         timer.stop();
         prevTime = -1;
@@ -59,6 +62,14 @@ public class simulationTimer {
 
     public boolean isActive() {
         return simActive;
+    }
+
+    public double getTimescale() {
+        return timeScale;
+    }
+
+    public void setTimeScale(double targetVal) {
+        timeScale = targetVal;
     }
 
 }
