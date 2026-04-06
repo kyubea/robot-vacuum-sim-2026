@@ -29,8 +29,8 @@ public class simulationTimer {
                         vacuum.update(deltaTime, visualizationPane.getOffsetX(),
                                 visualizationPane.getOffsetY(), visualizationPane.getScale());
                         visualizationPane.render();
-
                     }
+
 
 
                 }
@@ -56,6 +56,9 @@ public class simulationTimer {
 
     public void stop() {
         timer.stop();
+        System.out.println(vacuum.getX());
+        System.out.println(vacuum.getY());
+        System.out.println(vacuum.getOrientation());
         prevTime = -1;
         simActive = false;
     }

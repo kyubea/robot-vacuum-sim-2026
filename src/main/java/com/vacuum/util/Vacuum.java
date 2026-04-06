@@ -8,7 +8,8 @@ import javafx.scene.image.ImageView;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
-import javafx.scene.shape.Sphere;
+import javafx.scene.shape.Shape;
+import javafx.scene.transform.Rotate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -27,7 +28,9 @@ public class Vacuum {
     private Image image;
     private ImageView imageView;
     private List<Rectangle> wallColliders;
-    private Circle hitbox = new Circle();
+    private Rectangle hitbox = new Rectangle();
+    public Circle osTest = new Circle();
+    private final Rotate hitboxRotate = new Rotate();
 
     private static final double BATTERY_DRAIN_RATE = 5; // percentage per second
     private static final double VACUUM_SIZE = 2;
@@ -42,13 +45,13 @@ public class Vacuum {
         imageView = new ImageView();
         imageView.setImage(image);
         wallColliders = new ArrayList<Rectangle>();
+        hitbox.getTransforms().add(hitboxRotate);
         hitbox.setFill(Color.TRANSPARENT);
-        hitbox.setStroke(Color.PURPLE);
-        hitbox.setStrokeWidth(1);
-
+        hitbox.setStroke(Color.BLUE);
     }
 
-    // old movement function, delete this after code has been merged if it isn't being used
+    // old movement function, delete this after code has been merged if it isn't
+    // being used
     public void move(double dx, double dy) {
         this.x += dx;
         this.y += dy;
@@ -113,7 +116,7 @@ public class Vacuum {
 
     private void alg1(double deltaTime) {
         // placeholder movement alg, replace
-        this.forward(18, deltaTime);
+        this.forward(30, deltaTime);
         this.rotate(30, deltaTime);
 
     }
@@ -132,28 +135,93 @@ public class Vacuum {
 
     private void testCollision(double rollbackX, double rollbackY, double offsetX, double offsetY,
             double screenScale) {
-        double screenSize = VACUUM_SIZE * screenScale;
-        double half = screenSize / 2;
-        // scale vacuum hitbox to visually match screen scale
-        hitbox.setCenterX(offsetX + x * screenScale + half);
-        hitbox.setCenterY(offsetY + y * screenScale + half);
-        hitbox.setRadius(half);
+        double vacuumScreenSize = VACUUM_SIZE * screenScale;
+        double half = vacuumScreenSize / 2.0;
+
+        /*
+         * renderVacuum() places the ImageView top-left at (offsetX + x*scale, offsetY + y*scale)
+         * and calls setRotate(), which JavaFX rotates around the node's CENTER. So the visual
+         * center of the vacuum on screen is: centerX = offsetX + x*scale + half centerY = offsetY +
+         * y*scale + half
+         *
+         * All hitbox rectangles must be positioned and pivoted the same way: their top-left corner
+         * is at (centerX - half, centerY - half), and the Rotate pivot is at (centerX, centerY).
+         */
+        double rollbackCenterX = offsetX + rollbackX * screenScale + half;
+        double rollbackCenterY = offsetY + rollbackY * screenScale + half;
+
+        // Distance moved this frame in screen pixels (sweep length for the blue box)
+        double distance = Math.sqrt(Math.pow(x - rollbackX, 2) + Math.pow(y - rollbackY, 2));
+
+        // Unit vector along the vacuum's facing direction
+        double radians = Math.toRadians(orientation);
+        double dirX = Math.cos(radians);
+        double dirY = Math.sin(radians);
+
+        // --- Blue sweep hitbox: square body + forward sweep, rotated around center ---
+        hitbox.setX(rollbackCenterX - half);
+        hitbox.setY(rollbackCenterY - half);
+        hitbox.setWidth((VACUUM_SIZE + distance) * screenScale);
+        hitbox.setHeight(vacuumScreenSize);
+        hitbox.setFill(Color.TRANSPARENT);
+        hitbox.setStroke(Color.BLUE);
+        hitbox.setStrokeWidth(1);
+        hitboxRotate.setAngle(orientation);
+        hitboxRotate.setPivotX(rollbackCenterX);
+        hitboxRotate.setPivotY(rollbackCenterY);
+        ArrayList<Rectangle> riskRectangles = new ArrayList<Rectangle>();
         for (Rectangle wall : wallColliders) {
-            // scale walls to visually match screen scale
+            // Scale wall collider to screen space
             Rectangle scaledWall = new Rectangle();
             scaledWall.setX(offsetX + wall.getX() * screenScale);
             scaledWall.setY(offsetY + wall.getY() * screenScale);
             scaledWall.setWidth(wall.getWidth() * screenScale);
             scaledWall.setHeight(wall.getHeight() * screenScale);
-            // check for collision at world size
-            if (hitbox.intersects(scaledWall.getBoundsInParent())) {
-                x = rollbackX;
-                y = rollbackY;
-                break;
+
+            if (hitbox.getBoundsInParent().intersects(scaledWall.getBoundsInLocal())) {
+                riskRectangles.add(scaledWall);
             }
         }
-    }
+        if (riskRectangles.size() > 0) {
+            osTest.setRadius(half);
+            osTest.setFill(Color.TRANSPARENT);
+            osTest.setStroke(Color.ORANGE);
+            osTest.setStrokeWidth(1);
+            osTest.setCenterX(rollbackCenterX);
+            osTest.setCenterY(rollbackCenterY);
+            distance *= screenScale;
+            while (distance > 0.1) {
+                osTest.setCenterX(osTest.getCenterX() + 0.1 * dirX);
+                osTest.setCenterY(osTest.getCenterY() + 0.1 * dirY);
+                for (Rectangle wall : riskRectangles) {
+                    if (osTest.getBoundsInParent().intersects(wall.getBoundsInLocal())) {
+                        osTest.setCenterX(osTest.getCenterX() + -0.1 * dirX);
+                        osTest.setCenterY(osTest.getCenterY() + -0.1 * dirY);
+                        break;
+                    }
+                }
+                distance -= 0.1;
 
+            }
+            while (distance > 0.01) {
+                osTest.setCenterX(osTest.getCenterX() + 0.01 * dirX);
+                osTest.setCenterY(osTest.getCenterY() + 0.01 * dirY);
+                for (Rectangle wall : riskRectangles) {
+                    if (osTest.getBoundsInParent().intersects(wall.getBoundsInLocal())) {
+                        osTest.setCenterX(osTest.getCenterX() + -0.01 * dirX);
+                        osTest.setCenterY(osTest.getCenterY() + -0.01 * dirY);
+                        break;
+                    }
+                }
+                distance -= 0.01;
+            }
+            System.out.println(distance);
+
+            x = (osTest.getCenterX() - half - offsetX) / screenScale;
+            y = (osTest.getCenterY() - half - offsetY) / screenScale;
+        }
+
+    }
 
     public double getX() {
         return x;
@@ -179,11 +247,9 @@ public class Vacuum {
         return VACUUM_SIZE;
     }
 
-    public Circle getHitbox() {
+    public Rectangle getHitbox() {
         return hitbox;
     }
-
-
 
     public void createWallColliders(List<Room> rooms) { // create walls of the house's rooms
         this.wallColliders = new ArrayList<Rectangle>();

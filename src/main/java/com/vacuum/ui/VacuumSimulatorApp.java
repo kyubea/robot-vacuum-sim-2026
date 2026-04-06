@@ -68,7 +68,7 @@ public class VacuumSimulatorApp extends Application {
 
         // Create default house (Req 1.2: valid default state)
         house = createDefaultHouse();
-        vacuum = new Vacuum(43, 20);
+        vacuum = new Vacuum(47.9 + 0.05, 3.3 + 0.09);
         vacuum.createWallColliders(house.getRooms());
 
         // Create app shell

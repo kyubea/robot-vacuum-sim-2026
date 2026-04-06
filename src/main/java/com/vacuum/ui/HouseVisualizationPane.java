@@ -906,6 +906,9 @@ public class HouseVisualizationPane extends Pane {
     private void renderColliders() { // render colliders for debugging
 
         this.getChildren().add(vacuum.getHitbox());
+        if (vacuum.osTest != null) {
+            this.getChildren().add(vacuum.osTest);
+        }
         for (Rectangle houseWall : vacuum.getWallColliders()) {
             Rectangle wallRender = new Rectangle();
             wallRender.setX(offsetX + houseWall.getX() * scale);
