@@ -158,6 +158,10 @@ public class VacuumSimulatorApp extends Application {
         // Place robot when clicking canvas in non-edit mode
         visualizationPane.setRobotPlacementHandler(point -> {
             if (!visualizationPane.isEditMode() && !simTimer.isActive()) {
+                if (!isPointInsideHouse(point.getX(), point.getY())) {
+                    updateStatus("Cannot place robot outside the house");
+                    return;
+                }
                 vacuum.setPosition(point.getX(), point.getY());
                 vacuum.setStartPosition(point.getX(), point.getY());
                 visualizationPane.render();
@@ -543,10 +547,9 @@ public class VacuumSimulatorApp extends Application {
         MenuItem regenerateSeedItem = new MenuItem("Regenerate From Seed...");
 
         startItem.setOnAction(e -> {
-            int batteryLevel = parametersPanel.getStartBattery();
-            vacuum.setStartPosition(vacuum.getX(), vacuum.getY());
-            setSimulationEditingEnabled(false);
-            simTimer.start(batteryLevel, 1);
+            if (!startSimulationIfValid()) {
+                return;
+            }
             startItem.setDisable(true);
             stopItem.setDisable(false);
             pauseItem.setDisable(false);
@@ -898,10 +901,9 @@ public class VacuumSimulatorApp extends Application {
         stopButton.setMaxWidth(Double.MAX_VALUE);
 
         startButton.setOnAction(e -> {
-            int batteryLevel = parametersPanel.getStartBattery();
-            vacuum.setStartPosition(vacuum.getX(), vacuum.getY());
-            setSimulationEditingEnabled(false);
-            simTimer.start(batteryLevel, 1);
+            if (!startSimulationIfValid()) {
+                return;
+            }
             startButton.setDisable(true);
             stopButton.setDisable(false);
         });
@@ -933,6 +935,37 @@ public class VacuumSimulatorApp extends Application {
         GridPane.setHgrow(valueLabel, Priority.ALWAYS);
         grid.add(nameLabel, 0, row);
         grid.add(valueLabel, 1, row);
+    }
+
+    private boolean isPointInsideHouse(double x, double y) {
+        if (house == null) {
+            return false;
+        }
+        for (Room room : house.getRooms()) {
+            if (room.contains(x, y)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean startSimulationIfValid() {
+        if (house == null) {
+            updateStatus("Cannot start simulation: house is not initialized");
+            return false;
+        }
+
+        List<String> validationErrors = house.validate();
+        if (!validationErrors.isEmpty()) {
+            updateStatus("Cannot start simulation: " + validationErrors.get(0));
+            return false;
+        }
+
+        int batteryLevel = parametersPanel.getStartBattery();
+        vacuum.setStartPosition(vacuum.getX(), vacuum.getY());
+        setSimulationEditingEnabled(false);
+        simTimer.start(batteryLevel, 1);
+        return true;
     }
 
     /**
