@@ -1,0 +1,335 @@
+package com.vacuum.ui;
+
+import com.vacuum.util.Vacuum;
+import com.vacuum.util.simulationTimer;
+import javafx.animation.AnimationTimer;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
+
+/**
+ * Parameters Panel - embedded in main window, displays and allows adjustment of vacuum simulation
+ * parameters in real-time. Designed for easy hookup of data sources and shows vacuum status,
+ * battery, speed, and position with adjustable parameters.
+ */
+public class ParametersPanel extends VBox {
+
+    private Vacuum vacuum;
+    private simulationTimer simTimer;
+    private HouseVisualizationPane visualizationPane;
+
+    // HOOKUP POINTS - Labels that can be easily bound to data sources
+    private Label speedValueLabel;
+    private Label batteryValueLabel;
+    private Label posXValueLabel;
+    private Label posYValueLabel;
+    private Label orientationValueLabel;
+
+    // Adjustable parameters
+    private Spinner<Integer> batteryDrainSpinner;
+    private Spinner<Integer> batteryStartSpinner;
+
+    // Speed multiplier buttons
+    private ToggleButton speed1xButton;
+    private ToggleButton speed2xButton;
+    private ToggleButton speed10xButton;
+    private Label speedMultiplierLabel;
+
+    public ParametersPanel(Vacuum vacuum, simulationTimer simTimer,
+            HouseVisualizationPane visualizationPane) {
+        super(12);
+        this.vacuum = vacuum;
+        this.simTimer = simTimer;
+        this.visualizationPane = visualizationPane;
+
+        this.setPadding(new Insets(16));
+        this.setStyle("-fx-border-left: 1px solid #CCCCCC;");
+        this.getStyleClass().add("parameters-panel");
+        this.setPrefWidth(320);
+        this.setMinWidth(280);
+
+        // Build the panel
+        buildPanel();
+
+        // Start live update loop
+        startLiveUpdates();
+    }
+
+    private void buildPanel() {
+        Label titleLabel = new Label("Simulation Parameters");
+        titleLabel.getStyleClass().add("panel-title");
+
+        // Vacuum Status Card
+        VBox vacuumCard = createVacuumStatusCard();
+
+        // Simulation Speed Card
+        VBox speedCard = createSpeedControlCard();
+
+        // Parameters Adjustment Card
+        VBox parametersCard = createParametersCard();
+
+        this.getChildren().addAll(titleLabel, vacuumCard, speedCard, parametersCard);
+    }
+
+    /**
+     * Creates the vacuum status card showing battery, position, and speed
+     */
+    private VBox createVacuumStatusCard() {
+        VBox card = new VBox(10);
+        card.getStyleClass().add("info-card");
+
+        Label cardTitle = new Label("Vacuum Status");
+        cardTitle.getStyleClass().add("card-title");
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+
+        // Vacuum Speed - NOW HOOKED UP to real speed
+        speedValueLabel = createValueLabel("0.0 ft/s");
+        addParameterRow(grid, 0, "Speed", speedValueLabel, null);
+
+        // Battery Life - HOOKED UP
+        batteryValueLabel = createValueLabel("100%");
+        addParameterRow(grid, 1, "Battery", batteryValueLabel, null);
+
+        // Position X - HOOKED UP
+        posXValueLabel = createValueLabel("0.0");
+        addParameterRow(grid, 2, "Position X", posXValueLabel, null);
+
+        // Position Y - HOOKED UP
+        posYValueLabel = createValueLabel("0.0");
+        addParameterRow(grid, 3, "Position Y", posYValueLabel, null);
+
+        // Orientation - HOOKED UP
+        orientationValueLabel = createValueLabel("0°");
+        addParameterRow(grid, 4, "Orientation", orientationValueLabel, null);
+
+        card.getChildren().addAll(cardTitle, grid);
+        return card;
+    }
+
+    /**
+     * Creates the speed control card with multiplier buttons
+     */
+    private VBox createSpeedControlCard() {
+        VBox card = new VBox(10);
+        card.getStyleClass().add("info-card");
+
+        Label cardTitle = new Label("Simulation Speed");
+        cardTitle.getStyleClass().add("card-title");
+
+        // Speed multiplier display
+        HBox multiplierDisplay = new HBox(5);
+        multiplierDisplay.setAlignment(Pos.CENTER_LEFT);
+        Label multiplierLabel = new Label("Current Speed:");
+        multiplierLabel.getStyleClass().add("metric-label");
+        speedMultiplierLabel = new Label("1.0x");
+        speedMultiplierLabel.getStyleClass().add("metric-value");
+        multiplierDisplay.getChildren().addAll(multiplierLabel, speedMultiplierLabel);
+
+        // Speed buttons container
+        VBox buttonContainer = new VBox(8);
+        Label controlsLabel = new Label("Speed Multipliers");
+        controlsLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 12;");
+
+        HBox buttonRow1 = new HBox(6);
+        buttonRow1.setAlignment(Pos.CENTER);
+
+        speed1xButton = createSpeedButton("1x", 1.0);
+        speed2xButton = createSpeedButton("2x", 2.0);
+        speed10xButton = createSpeedButton("10x", 10.0);
+
+        speed1xButton.setSelected(true); // Default selection
+
+        buttonRow1.getChildren().addAll(speed1xButton, speed2xButton, speed10xButton);
+
+        buttonContainer.getChildren().addAll(controlsLabel, buttonRow1);
+
+        card.getChildren().addAll(cardTitle, multiplierDisplay, new Separator(), buttonContainer);
+        return card;
+    }
+
+    /**
+     * Creates a card for adjustable simulation parameters
+     */
+    private VBox createParametersCard() {
+        VBox card = new VBox(10);
+        card.getStyleClass().add("info-card");
+
+        Label cardTitle = new Label("Adjustable Parameters");
+        cardTitle.getStyleClass().add("card-title");
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+
+        // Battery Drain Rate (percent per second)
+        batteryDrainSpinner = new Spinner<>(0, 100, 5, 1);
+        batteryDrainSpinner.setEditable(true);
+        batteryDrainSpinner.valueProperty().addListener((obs, oldVal, newVal) -> {
+            vacuum.setBatteryDrainRate(newVal);
+        });
+        addParameterRowWithSpinner(grid, 0, "Battery Drain (%/s)", batteryDrainSpinner,
+                "Adjust how quickly battery drains during simulation");
+
+        // Battery Start Value
+        batteryStartSpinner = new Spinner<>(0, 100, 100, 5);
+        batteryStartSpinner.setEditable(true);
+        addParameterRowWithSpinner(grid, 1, "Start Battery (%)", batteryStartSpinner,
+                "Set initial battery level for next simulation");
+
+        Label noteLabel = new Label("Click on the canvas to move the vacuum to a location.");
+        noteLabel.setWrapText(true);
+        noteLabel.setStyle("-fx-font-size: 11; -fx-text-fill: #666666;");
+
+        card.getChildren().addAll(cardTitle, grid, new Separator(), noteLabel);
+        return card;
+    }
+
+    /**
+     * Creates a labeled parameter row in a grid with spinner
+     */
+    private void addParameterRowWithSpinner(GridPane grid, int row, String label,
+            Spinner<?> valueControl, String tooltip) {
+        Label nameLabel = new Label(label);
+        nameLabel.getStyleClass().add("metric-label");
+        GridPane.setHgrow(valueControl, Priority.ALWAYS);
+        valueControl.setMaxWidth(Double.MAX_VALUE);
+
+        if (tooltip != null) {
+            Tooltip tip = new Tooltip(tooltip);
+            tip.setWrapText(true);
+            tip.setPrefWidth(250);
+            nameLabel.setTooltip(tip);
+        }
+
+        grid.add(nameLabel, 0, row);
+        grid.add(valueControl, 1, row);
+    }
+
+    /**
+     * Creates a labeled parameter row in a grid
+     */
+    private void addParameterRow(GridPane grid, int row, String label, Label valueLabel,
+            String tooltip) {
+        Label nameLabel = new Label(label);
+        nameLabel.getStyleClass().add("metric-label");
+        GridPane.setHgrow(valueLabel, Priority.ALWAYS);
+
+        if (tooltip != null) {
+            Tooltip tip = new Tooltip(tooltip);
+            tip.setWrapText(true);
+            tip.setPrefWidth(250);
+            nameLabel.setTooltip(tip);
+        }
+
+        grid.add(nameLabel, 0, row);
+        grid.add(valueLabel, 1, row);
+    }
+
+    /**
+     * Creates a value label with appropriate styling
+     */
+    private Label createValueLabel(String text) {
+        Label value = new Label(text);
+        value.getStyleClass().add("metric-value");
+        return value;
+    }
+
+    /**
+     * Creates a speed multiplier button
+     */
+    private ToggleButton createSpeedButton(String text, double multiplier) {
+        ToggleButton button = new ToggleButton(text);
+        button.getStyleClass().add("shell-button");
+        button.setMinWidth(60);
+        button.setPrefWidth(75);
+
+        button.setOnAction(e -> {
+            simTimer.setTimeMultiplier(multiplier);
+            updateSpeedMultiplierLabel();
+            // Ensure only one button is selected at a time
+            if (button.isSelected()) {
+                speed1xButton.setSelected(button == speed1xButton);
+                speed2xButton.setSelected(button == speed2xButton);
+                speed10xButton.setSelected(button == speed10xButton);
+            }
+        });
+
+        return button;
+    }
+
+    /**
+     * Updates the speed multiplier display label
+     */
+    private void updateSpeedMultiplierLabel() {
+        double multiplier = simTimer.getTimeMultiplier();
+        if (multiplier == 10.0) {
+            speedMultiplierLabel.setText("10x");
+        } else if (multiplier == 2.0) {
+            speedMultiplierLabel.setText("2x");
+        } else {
+            speedMultiplierLabel.setText(String.format("%.1fx", multiplier));
+        }
+    }
+
+    /**
+     * Starts an animation loop to update live values from vacuum/simulation
+     */
+    private void startLiveUpdates() {
+        AnimationTimer updateTimer = new AnimationTimer() {
+            @Override
+            public void handle(long now) {
+                updateValues();
+            }
+        };
+        updateTimer.start();
+    }
+
+    /**
+     * Updates all displayed values from vacuum/simulation data
+     */
+    private void updateValues() {
+        // Battery - HOOKED UP
+        double battery = vacuum.getBattery();
+        batteryValueLabel.setText(String.format("%.1f%%", battery));
+
+        // Position - HOOKED UP
+        double x = vacuum.getX();
+        double y = vacuum.getY();
+        posXValueLabel.setText(String.format("%.2f", x));
+        posYValueLabel.setText(String.format("%.2f", y));
+
+        // Orientation - HOOKED UP
+        double orientation = vacuum.getOrientation();
+        orientationValueLabel.setText(String.format("%.1f°", orientation));
+
+        // Speed - NOW HOOKED UP to real speed
+        double speed = vacuum.getSpeed();
+        speedValueLabel.setText(String.format("%.2f ft/s", speed));
+    }
+
+    public int getStartBattery() {
+        return batteryStartSpinner.getValue();
+    }
+
+    public void setParametersEditable(boolean editable) {
+        batteryDrainSpinner.setDisable(!editable);
+        batteryStartSpinner.setDisable(!editable);
+        speed1xButton.setDisable(!editable);
+        speed2xButton.setDisable(!editable);
+        speed10xButton.setDisable(!editable);
+    }
+
+    public void setDarkMode(boolean darkMode) {
+        if (darkMode) {
+            if (!getStyleClass().contains("dark-mode")) {
+                getStyleClass().add("dark-mode");
+            }
+        } else {
+            getStyleClass().remove("dark-mode");
+        }
+    }
+}

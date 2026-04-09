@@ -4,6 +4,13 @@ import com.vacuum.model.*;
 import com.vacuum.model.Door.Orientation;
 import com.vacuum.util.Vacuum;
 import com.vacuum.util.simulationTimer;
+import javafx.animation.FadeTransition;
+import javafx.animation.Interpolator;
+import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
+import javafx.animation.ParallelTransition;
+import javafx.animation.Timeline;
+import javafx.animation.TranslateTransition;
 import javafx.application.Application;
 import javafx.event.ActionEvent;
 import javafx.geometry.Insets;
@@ -11,6 +18,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.ScrollEvent;
+import javafx.scene.layout.CornerRadii;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -19,13 +27,14 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
 import javafx.event.EventHandler;
+import javafx.util.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.w3c.dom.css.Rect;
-import javafx.scene.shape.Rectangle;
 
 
 import javafx.stage.Modality;
@@ -43,10 +52,19 @@ public class VacuumSimulatorApp extends Application {
 
     private HouseVisualizationPane visualizationPane;
     private ScrollPane scrollPane;
+    private StackPane centerShell;
     private House house;
     private BorderPane root;
     private Stage primaryStage;
     private Stage controlsStage;
+    private ParametersPanel parametersPanel;
+    private HBox editActionsStrip;
+    private ToggleButton editModeToggle;
+    private ToggleButton addRoomToggle;
+    private ToggleButton addObstructionToggle;
+    private Label editModeIndicatorLabel;
+    private Rectangle editModeOutline;
+    private boolean darkModeActive = false;
 
     private Label statusLabel;
     private Label zoomLabel;
@@ -81,7 +99,7 @@ public class VacuumSimulatorApp extends Application {
 
         VBox topShell = new VBox();
         topShell.getStyleClass().add("top-shell");
-        topShell.getChildren().addAll(menuBar, createToolStrip());
+        topShell.getChildren().addAll(menuBar, createToolStrip(), createEditActionsStrip());
         root.setTop(topShell);
 
         // Center: scrollable, pannable visualization
@@ -114,16 +132,39 @@ public class VacuumSimulatorApp extends Application {
             }
         });
 
-        StackPane centerShell = new StackPane(scrollPane);
+        centerShell = new StackPane(scrollPane);
         centerShell.getStyleClass().add("center-shell");
         centerShell.setPadding(new Insets(16));
+
+        editModeOutline = new Rectangle();
+        editModeOutline.setMouseTransparent(true);
+        editModeOutline.setManaged(false);
+        editModeOutline.setCache(true);
+        editModeOutline.setFill(Color.TRANSPARENT);
+        editModeOutline.setStrokeWidth(3.0);
+        editModeOutline.setArcWidth(18);
+        editModeOutline.setArcHeight(18);
+        editModeOutline.setOpacity(0.0);
+        editModeOutline.widthProperty().bind(centerShell.widthProperty().subtract(20));
+        editModeOutline.heightProperty().bind(centerShell.heightProperty().subtract(20));
+        editModeOutline.setStroke(Color.TRANSPARENT);
+        centerShell.getChildren().add(editModeOutline);
+
         root.setCenter(centerShell);
 
-        // Right: info panel
-        VBox infoPanel = createInfoPanel();
-        root.setRight(infoPanel);
+        // Right: info panel and parameters panel in a scrollable container
+        createRightPanel();
 
-
+        // Place robot when clicking canvas in non-edit mode
+        visualizationPane.setRobotPlacementHandler(point -> {
+            if (!visualizationPane.isEditMode() && !simTimer.isActive()) {
+                vacuum.setPosition(point.getX(), point.getY());
+                vacuum.setStartPosition(point.getX(), point.getY());
+                visualizationPane.render();
+                updateStatus(
+                        String.format("Vacuum moved to (%.2f, %.2f)", point.getX(), point.getY()));
+            }
+        });
 
         // Bottom: status bar
         root.setBottom(createStatusBar());
@@ -178,14 +219,30 @@ public class VacuumSimulatorApp extends Application {
             updateStatus("Zoom reset to 100%");
         });
 
-        // Add Room toggle
-        ToggleButton addRoomToggle = new ToggleButton("+ Room");
-        addRoomToggle.getStyleClass().add("strip-button");
-        addRoomToggle.setOnAction(e -> {
-            boolean active = addRoomToggle.isSelected();
-            visualizationPane.setAddRoomMode(active);
-            updateStatus(active ? "Draw mode: click and drag on the canvas to place a new room"
-                    : "Ready");
+        editModeToggle = new ToggleButton("Edit Mode");
+        editModeToggle.getStyleClass().add("strip-button");
+        editModeToggle.setOnAction(e -> {
+            if (simTimer.isActive()) {
+                editModeToggle.setSelected(false);
+                updateStatus("Stop simulation before entering Edit mode");
+                return;
+            }
+            boolean active = editModeToggle.isSelected();
+            visualizationPane.setEditMode(active);
+            animateEditActionsStrip(active);
+            updateEditModeVisuals(active, active ? getEditModeColor() : Color.TRANSPARENT);
+            if (!active) {
+                addRoomToggle.setSelected(false);
+                if (addObstructionToggle != null) {
+                    addObstructionToggle.setSelected(false);
+                }
+                visualizationPane.setAddRoomMode(false);
+                updateEditModeIndicator("Mode: Select Room", false);
+                updateStatus("Edit mode off: click canvas to place robot");
+            } else {
+                updateEditModeIndicator("Mode: Select Room", true);
+                updateStatus("Edit mode on: room selection/resizing enabled");
+            }
         });
 
         Button controlsButton = new Button("Controls");
@@ -206,13 +263,185 @@ public class VacuumSimulatorApp extends Application {
             } else {
                 root.getStyleClass().remove("dark-mode");
             }
+            darkModeActive = isDark;
             updateControlsWindowTheme(isDark);
+            parametersPanel.setDarkMode(isDark);
             visualizationPane.setDarkMode(isDark);
+            if (visualizationPane.isEditMode()) {
+                updateEditModeVisuals(true, getEditModeColor());
+            }
         });
 
         strip.getChildren().addAll(viewLabel, zoomOutButton, zoomInButton, resetZoomButton,
-                addRoomToggle, controlsButton, spacer, darkToggle);
+                editModeToggle, controlsButton, spacer, darkToggle);
         return strip;
+    }
+
+    private HBox createEditActionsStrip() {
+        editActionsStrip = new HBox(8);
+        editActionsStrip.setPadding(new Insets(6, 12, 8, 12));
+        editActionsStrip.setAlignment(Pos.CENTER_LEFT);
+        editActionsStrip.getStyleClass().add("edit-actions-strip");
+        editActionsStrip.setVisible(false);
+        editActionsStrip.setManaged(false);
+        editActionsStrip.setOpacity(0.0);
+        editActionsStrip.setTranslateY(-6);
+
+        Label editActionsLabel = new Label("Edit Tools");
+        editActionsLabel.getStyleClass().add("tool-group-label");
+
+        editModeIndicatorLabel = new Label("Mode: Select Room");
+        editModeIndicatorLabel.getStyleClass().add("edit-mode-indicator");
+
+        addRoomToggle = new ToggleButton("+ Room");
+        addRoomToggle.getStyleClass().add("strip-button");
+        addRoomToggle.setOnAction(e -> {
+            if (!visualizationPane.isEditMode() || simTimer.isActive()) {
+                addRoomToggle.setSelected(false);
+                return;
+            }
+            boolean active = addRoomToggle.isSelected();
+            if (active && addObstructionToggle != null) {
+                addObstructionToggle.setSelected(false);
+            }
+            visualizationPane.setAddRoomMode(active);
+            updateEditModeIndicator(active ? "Mode: New Room" : "Mode: Select Room", true);
+            updateEditModeVisuals(true, active ? getRoomModeColor() : getEditModeColor());
+            updateStatus(active ? "Draw mode: click and drag on the canvas to place a new room"
+                    : "Edit mode ready");
+        });
+
+        addObstructionToggle = new ToggleButton("+ Obstruction");
+        addObstructionToggle.getStyleClass().add("strip-button");
+        addObstructionToggle.setOnAction(e -> {
+            if (!visualizationPane.isEditMode() || simTimer.isActive()) {
+                addObstructionToggle.setSelected(false);
+                return;
+            }
+
+            boolean active = addObstructionToggle.isSelected();
+            if (active) {
+                addRoomToggle.setSelected(false);
+                visualizationPane.setAddRoomMode(false);
+                updateEditModeIndicator("Mode: New Obstruction (placeholder)", true);
+                updateEditModeVisuals(true, getObstructionModeColor());
+                updateStatus("Obstruction placement is not implemented yet.");
+            } else {
+                updateEditModeIndicator("Mode: Select Room", true);
+                updateEditModeVisuals(true, getEditModeColor());
+            }
+        });
+
+        editActionsStrip.getChildren().addAll(editActionsLabel, addRoomToggle, addObstructionToggle,
+                editModeIndicatorLabel);
+        return editActionsStrip;
+    }
+
+    private void animateEditActionsStrip(boolean show) {
+        if (editActionsStrip == null) {
+            return;
+        }
+
+        if (show) {
+            editActionsStrip.setManaged(true);
+            editActionsStrip.setVisible(true);
+        }
+
+        FadeTransition fade = new FadeTransition(Duration.millis(220), editActionsStrip);
+        fade.setInterpolator(Interpolator.EASE_BOTH);
+        fade.setFromValue(editActionsStrip.getOpacity());
+        fade.setToValue(show ? 1.0 : 0.0);
+
+        TranslateTransition slide = new TranslateTransition(Duration.millis(220), editActionsStrip);
+        slide.setInterpolator(Interpolator.EASE_BOTH);
+        slide.setFromY(editActionsStrip.getTranslateY());
+        slide.setToY(show ? 0 : -6);
+
+        ParallelTransition transition = new ParallelTransition(fade, slide);
+        transition.setOnFinished(evt -> {
+            if (!show) {
+                editActionsStrip.setVisible(false);
+                editActionsStrip.setManaged(false);
+            }
+        });
+        transition.play();
+    }
+
+    private void updateEditModeVisuals(boolean editModeActive, Color targetColor) {
+        if (centerShell == null || editModeOutline == null) {
+            return;
+        }
+
+        if (editModeActive && !centerShell.getStyleClass().contains("edit-mode-active")) {
+            centerShell.getStyleClass().add("edit-mode-active");
+        }
+        if (!editModeActive) {
+            centerShell.getStyleClass().remove("edit-mode-active");
+        }
+
+        Color fromColor = editModeOutline.getStroke() instanceof Color c ? c : Color.TRANSPARENT;
+        Timeline timeline = new Timeline(new KeyFrame(Duration.ZERO,
+                new KeyValue(editModeOutline.strokeProperty(), fromColor, Interpolator.EASE_BOTH),
+                new KeyValue(editModeOutline.opacityProperty(), editModeOutline.getOpacity(),
+                        Interpolator.EASE_BOTH)),
+                new KeyFrame(Duration.millis(240), new KeyValue(editModeOutline.strokeProperty(),
+                        editModeActive ? targetColor : Color.TRANSPARENT, Interpolator.EASE_BOTH),
+                        new KeyValue(editModeOutline.opacityProperty(), editModeActive ? 1.0 : 0.0,
+                                Interpolator.EASE_BOTH)));
+        timeline.play();
+    }
+
+    private void updateEditModeIndicator(String text, boolean editingEnabled) {
+        if (editModeIndicatorLabel == null) {
+            return;
+        }
+        editModeIndicatorLabel.setText(text);
+        editModeIndicatorLabel.getStyleClass().removeAll("mode-room", "mode-obstruction",
+                "mode-idle");
+        if (!editingEnabled || text.contains("Select")) {
+            editModeIndicatorLabel.getStyleClass().add("mode-idle");
+        } else if (text.contains("Room")) {
+            editModeIndicatorLabel.getStyleClass().add("mode-room");
+        } else {
+            editModeIndicatorLabel.getStyleClass().add("mode-obstruction");
+        }
+    }
+
+    private Color getEditModeColor() {
+        return darkModeActive ? Color.web("#25aab3") : Color.web("#0f7b82");
+    }
+
+    private Color getRoomModeColor() {
+        return darkModeActive ? Color.web("#49c8b0") : Color.web("#1f9f86");
+    }
+
+    private Color getObstructionModeColor() {
+        return darkModeActive ? Color.web("#ffb347") : Color.web("#d96b1d");
+    }
+
+    private void setSimulationEditingEnabled(boolean enabled) {
+        if (!enabled) {
+            if (editModeToggle != null) {
+                editModeToggle.setSelected(false);
+            }
+            if (addRoomToggle != null) {
+                addRoomToggle.setSelected(false);
+            }
+            if (addObstructionToggle != null) {
+                addObstructionToggle.setSelected(false);
+            }
+            visualizationPane.setAddRoomMode(false);
+            visualizationPane.setEditMode(false);
+            animateEditActionsStrip(false);
+            updateEditModeVisuals(false, Color.TRANSPARENT);
+            updateEditModeIndicator("Mode: Locked (simulation running)", false);
+        }
+        if (editModeToggle != null) {
+            editModeToggle.setDisable(!enabled);
+        }
+        if (parametersPanel != null) {
+            parametersPanel.setParametersEditable(enabled);
+        }
     }
 
     /**
@@ -314,13 +543,17 @@ public class VacuumSimulatorApp extends Application {
         MenuItem regenerateSeedItem = new MenuItem("Regenerate From Seed...");
 
         startItem.setOnAction(e -> {
-            simTimer.start(100, 1);
+            int batteryLevel = parametersPanel.getStartBattery();
+            vacuum.setStartPosition(vacuum.getX(), vacuum.getY());
+            setSimulationEditingEnabled(false);
+            simTimer.start(batteryLevel, 1);
             startItem.setDisable(true);
             stopItem.setDisable(false);
             pauseItem.setDisable(false);
         });
         stopItem.setOnAction(e -> {
             simTimer.stop();
+            setSimulationEditingEnabled(true);
             startItem.setDisable(false);
             stopItem.setDisable(true);
             pauseItem.setDisable(true);
@@ -328,13 +561,15 @@ public class VacuumSimulatorApp extends Application {
         });
         pauseItem.setOnAction(e -> {
             simTimer.stop();
+            setSimulationEditingEnabled(true);
             startItem.setDisable(false);
             stopItem.setDisable(true);
             pauseItem.setDisable(true);
         });
         resetItem.setOnAction(e -> {
             simTimer.stop();
-            vacuum.reset(100, 1);
+            setSimulationEditingEnabled(true);
+            vacuum.reset(parametersPanel.getStartBattery(), 1);
             visualizationPane.render();
             startItem.setDisable(false);
             stopItem.setDisable(true);
@@ -461,7 +696,7 @@ public class VacuumSimulatorApp extends Application {
         Label toolbarTitle = new Label("Toolbar");
         toolbarTitle.getStyleClass().add("card-title");
         Label toolbarText = new Label(
-                "- - and +: zoom out or in\n- 100%: reset zoom level\n- + Room: draw a new room on the canvas\n- Controls: open or hide this window\n- Dark / Light: switch the application theme");
+                "- - and +: zoom out or in\n- 100%: reset zoom level\n- Edit Mode: shows edit tools and enables room editing\n- + Room: in the edit tools bar (Edit Mode only)\n- + Obstruction: placeholder button in the edit tools bar\n- Controls: open or hide this window\n- Dark / Light: switch the application theme");
         toolbarText.setWrapText(true);
         toolbarText.getStyleClass().add("hint-text");
         toolbarCard.getChildren().addAll(toolbarTitle, toolbarText);
@@ -471,7 +706,7 @@ public class VacuumSimulatorApp extends Application {
         Label canvasTitle = new Label("Canvas");
         canvasTitle.getStyleClass().add("card-title");
         Label canvasText = new Label(
-                "- Drag the background to pan\n- Hold Ctrl and use the mouse wheel to zoom\n- Click a room to select it\n- Drag room edge handles to resize in 1-foot increments\n- In + Room mode, click and drag to place a room\n- Select a room and click a dashed shared wall to add a door");
+                "- Drag the background to pan\n- Hold Ctrl and use the mouse wheel to zoom\n- In normal mode, click to place the robot\n- In Edit Mode, click a room to select it\n- Drag room edge handles to resize in 1-foot increments\n- In + Room mode, click and drag to place a room\n- Select a room and click a dashed shared wall to add a door");
         canvasText.setWrapText(true);
         canvasText.getStyleClass().add("hint-text");
         canvasCard.getChildren().addAll(canvasTitle, canvasText);
@@ -663,12 +898,16 @@ public class VacuumSimulatorApp extends Application {
         stopButton.setMaxWidth(Double.MAX_VALUE);
 
         startButton.setOnAction(e -> {
-            simTimer.start(100, 1);
+            int batteryLevel = parametersPanel.getStartBattery();
+            vacuum.setStartPosition(vacuum.getX(), vacuum.getY());
+            setSimulationEditingEnabled(false);
+            simTimer.start(batteryLevel, 1);
             startButton.setDisable(true);
             stopButton.setDisable(false);
         });
         stopButton.setOnAction(e -> {
             simTimer.stop();
+            setSimulationEditingEnabled(true);
             startButton.setDisable(false);
             stopButton.setDisable(true);
             visualizationPane.render();
@@ -694,6 +933,37 @@ public class VacuumSimulatorApp extends Application {
         GridPane.setHgrow(valueLabel, Priority.ALWAYS);
         grid.add(nameLabel, 0, row);
         grid.add(valueLabel, 1, row);
+    }
+
+    /**
+     * Create right panel with house info and parameters in a scrollable container
+     */
+    private void createRightPanel() {
+        VBox rightContainer = new VBox(0);
+        rightContainer.setPrefWidth(320);
+        rightContainer.setMinWidth(280);
+        rightContainer.getStyleClass().add("right-panel");
+
+        // House info panel
+        VBox infoPanel = createInfoPanel();
+        infoPanel.setStyle("-fx-border-bottom: 1px solid #CCCCCC;");
+
+        // Parameters panel
+        parametersPanel = new ParametersPanel(vacuum, simTimer, visualizationPane);
+        parametersPanel.setParametersEditable(true);
+
+        // Scrollable container for both
+        ScrollPane scrollPane = new ScrollPane();
+        VBox scrollContent = new VBox(0);
+        scrollContent.getChildren().addAll(infoPanel, parametersPanel);
+        scrollPane.setContent(scrollContent);
+        scrollPane.setFitToWidth(true);
+        scrollPane.getStyleClass().add("right-scroll-pane");
+
+        rightContainer.getChildren().add(scrollPane);
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+
+        root.setRight(rightContainer);
     }
 
     public static void main(String[] args) {
