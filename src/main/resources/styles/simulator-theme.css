@@ -38,6 +38,38 @@
     -fx-border-width: 1 0 0 0;
 }
 
+.edit-actions-strip {
+    -fx-background-color: linear-gradient(to bottom, #eaf4f5, #e1eff1);
+    -fx-border-color: #b7d7da transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
+.edit-mode-indicator {
+    -fx-font-family: "Bahnschrift SemiBold", "Segoe UI Semibold";
+    -fx-font-size: 11px;
+    -fx-padding: 4 8 4 8;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+}
+
+.edit-mode-indicator.mode-idle {
+    -fx-text-fill: #365260;
+    -fx-background-color: #d9e9ec;
+    -fx-border-color: #b5cfd4;
+}
+
+.edit-mode-indicator.mode-room {
+    -fx-text-fill: #155e4f;
+    -fx-background-color: #d7efe8;
+    -fx-border-color: #8ec8ba;
+}
+
+.edit-mode-indicator.mode-obstruction {
+    -fx-text-fill: #7a4514;
+    -fx-background-color: #f6e4d2;
+    -fx-border-color: #d9a774;
+}
+
 .tool-group-label {
     -fx-font-family: "Bahnschrift SemiBold", "Segoe UI Semibold";
     -fx-font-size: 11px;
@@ -71,6 +103,10 @@
 
 .center-shell {
     -fx-background-color: linear-gradient(to bottom, #e1e7eb, #d8e0e5);
+}
+
+.center-shell.edit-mode-active {
+    -fx-border-color: transparent;
 }
 
 .house-scroll-pane {
@@ -235,6 +271,29 @@
     -fx-border-color: #1e3040 transparent transparent transparent;
 }
 
+.app-root.dark-mode .edit-actions-strip {
+    -fx-background-color: linear-gradient(to bottom, #1a313a, #172a32);
+    -fx-border-color: #2d5968 transparent transparent transparent;
+}
+
+.app-root.dark-mode .edit-mode-indicator.mode-idle {
+    -fx-text-fill: #9cc0cf;
+    -fx-background-color: #1e3943;
+    -fx-border-color: #315866;
+}
+
+.app-root.dark-mode .edit-mode-indicator.mode-room {
+    -fx-text-fill: #89dec8;
+    -fx-background-color: #1a3c35;
+    -fx-border-color: #2e7567;
+}
+
+.app-root.dark-mode .edit-mode-indicator.mode-obstruction {
+    -fx-text-fill: #ffcb93;
+    -fx-background-color: #4a311d;
+    -fx-border-color: #8d5b30;
+}
+
 .app-root.dark-mode .strip-button {
     -fx-background-color: #1e2c38;
     -fx-border-color: #2a3e4e;
@@ -253,6 +312,10 @@
 
 .app-root.dark-mode .center-shell {
     -fx-background-color: linear-gradient(to bottom, #151d26, #131b24);
+}
+
+.app-root.dark-mode .center-shell.edit-mode-active {
+    -fx-border-color: transparent;
 }
 
 .app-root.dark-mode .house-scroll-pane {

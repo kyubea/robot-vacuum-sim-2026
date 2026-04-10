@@ -21,12 +21,14 @@ public class Vacuum {
     public ImageView vImageView;
     public int moveMode = 1;
     private double battery = 100;
+    private double batteryDrainRate = 5; // percentage per second (configurable)
+    private double lastSpeed = 0; // Track actual speed for display
     // private VacuumConfig config;
     private Image image;
     private ImageView imageView;
     private List<Rectangle> wallColliders;
 
-    private static final double BATTERY_DRAIN_RATE = 5; // percentage per second
+    private static final double BATTERY_DRAIN_RATE_DEFAULT = 5; // percentage per second
     private static final double VACUUM_SIZE = 2;
 
     public Vacuum(double x, double y) {
@@ -67,6 +69,7 @@ public class Vacuum {
         double dx = distance * Math.cos(radians);
         double dy = distance * Math.sin(radians);
 
+        this.lastSpeed = speed; // Track speed
         this.x += dx;
         this.y += dy;
     }
@@ -79,10 +82,14 @@ public class Vacuum {
     }
 
     public void update(double deltaTime, double offsetX, double offsetY, double screenScale) {
-        this.battery -= BATTERY_DRAIN_RATE * deltaTime;
+        // Drain battery and clamp to [0, 100]
+        this.battery -= batteryDrainRate * deltaTime;
+        this.battery = Math.max(0, Math.min(100, this.battery));
+
         if (this.battery > 0) {
             double rollbackX = this.x;
             double rollbackY = this.y;
+            double rollbackSpeed = this.lastSpeed;
             switch (moveMode) {
                 default:
                     alg1(deltaTime);
@@ -98,8 +105,9 @@ public class Vacuum {
                     break;
 
             }
-            testCollision(rollbackX, rollbackY, offsetX, offsetY, screenScale);
+            testCollision(rollbackX, rollbackY, rollbackSpeed, offsetX, offsetY, screenScale);
         } else {
+            this.lastSpeed = 0;
             System.out.println("Battery has run out");
         }
     }
@@ -123,28 +131,49 @@ public class Vacuum {
 
     }
 
-    private void testCollision(double rollbackX, double rollbackY, double offsetX, double offsetY,
-            double screenScale) {
-        // scale vacuum hitbox to visually match screen scale
-        Rectangle scaledHitbox = new Rectangle();
-        scaledHitbox.setX(100 + x * screenScale);
-        scaledHitbox.setY(100 + y * screenScale);
-        scaledHitbox.setWidth(VACUUM_SIZE * screenScale);
-        scaledHitbox.setHeight(VACUUM_SIZE * screenScale);
-        for (Rectangle wall : wallColliders) {
-            // scale walls to visually match screen scale
-            Rectangle scaledWall = new Rectangle();
-            scaledWall.setX(offsetX + wall.getX() * screenScale);
-            scaledWall.setY(offsetY + wall.getY() * screenScale);
-            scaledWall.setWidth(wall.getWidth() * screenScale);
-            scaledWall.setHeight(wall.getHeight() * screenScale);
-            // check for collision at world size
-            if (scaledHitbox.intersects(scaledWall.getBoundsInParent())) {
-                x = rollbackX;
-                y = rollbackY;
-                break;
+    /**
+     * Improved collision detection with continuous collision checking for high-speed movement
+     */
+    private void testCollision(double rollbackX, double rollbackY, double lastSpeed, double offsetX,
+            double offsetY, double screenScale) {
+        // Check along the full travel path in world space so zoom/offset never affect collision.
+        double distance = Math.hypot(x - rollbackX, y - rollbackY);
+        int substeps = Math.max(1, (int) Math.ceil(distance / 0.10));
+        substeps = Math.min(substeps, 250);
+
+        double stepX = (x - rollbackX) / substeps;
+        double stepY = (y - rollbackY) / substeps;
+
+        for (int step = 1; step <= substeps; step++) {
+            double testX = rollbackX + (stepX * step);
+            double testY = rollbackY + (stepY * step);
+
+            if (checkCollisionAt(testX, testY, offsetX, offsetY, screenScale)) {
+                // Collision detected, restore to position before this step
+                x = rollbackX + (stepX * (step - 1));
+                y = rollbackY + (stepY * (step - 1));
+                return;
             }
         }
+    }
+
+    /**
+     * Check if there's a collision at the given position
+     */
+    private boolean checkCollisionAt(double testX, double testY, double offsetX, double offsetY,
+            double screenScale) {
+        Rectangle hitbox = new Rectangle();
+        hitbox.setX(testX);
+        hitbox.setY(testY);
+        hitbox.setWidth(VACUUM_SIZE);
+        hitbox.setHeight(VACUUM_SIZE);
+
+        for (Rectangle wall : wallColliders) {
+            if (hitbox.intersects(wall.getBoundsInLocal())) {
+                return true;
+            }
+        }
+        return false;
     }
 
 
@@ -172,7 +201,35 @@ public class Vacuum {
         return VACUUM_SIZE;
     }
 
+    public double getBattery() {
+        return battery;
+    }
 
+    public double getSpeed() {
+        return lastSpeed;
+    }
+
+    public void setBatteryDrainRate(double drainRate) {
+        this.batteryDrainRate = Math.max(0, drainRate); // Ensure non-negative
+    }
+
+    public double getBatteryDrainRate() {
+        return batteryDrainRate;
+    }
+
+    public void setBattery(double newBattery) {
+        this.battery = Math.max(0, Math.min(100, newBattery)); // Clamp to [0, 100]
+    }
+
+    public void setPosition(double newX, double newY) {
+        this.x = newX;
+        this.y = newY;
+    }
+
+    public void setStartPosition(double newStartX, double newStartY) {
+        this.startX = newStartX;
+        this.startY = newStartY;
+    }
 
     public void createWallColliders(List<Room> rooms) { // create walls of the house's rooms
         this.wallColliders = new ArrayList<Rectangle>();
