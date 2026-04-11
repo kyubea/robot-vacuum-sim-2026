@@ -14,6 +14,8 @@ public class simulationTimer {
 
     private boolean simActive = false;
     private long prevTime = -1;
+    private double timeMultiplier = 1.0; // Speed multiplier for simulation (1x, 2x, 10x, 1000x,
+                                         // etc)
 
 
     public simulationTimer(Vacuum vacuum, HouseVisualizationPane visualizationPane) {
@@ -25,8 +27,21 @@ public class simulationTimer {
             public void handle(long currentTime) {
                 if (prevTime > 0) {
                     double deltaTime = (currentTime - prevTime) / 1_000_000_000.0;
-                    vacuum.update(deltaTime, visualizationPane.getOffsetX(),
-                            visualizationPane.getOffsetY(), visualizationPane.getScale());
+                    deltaTime *= timeMultiplier; // Apply speed multiplier
+                    // Bound catch-up work to prevent frame-time spirals under heavy load.
+                    deltaTime = Math.min(deltaTime, 0.30);
+                    // Process in smaller slices to reduce tunneling through thin colliders.
+                    double remaining = deltaTime;
+                    final double maxStep = 1.0 / 60.0;
+                    int iterations = 0;
+                    final int maxIterations = 30;
+                    while (remaining > 0 && iterations < maxIterations) {
+                        double step = Math.min(maxStep, remaining);
+                        vacuum.update(step, visualizationPane.getOffsetX(),
+                                visualizationPane.getOffsetY(), visualizationPane.getScale());
+                        remaining -= step;
+                        iterations++;
+                    }
                 }
                 visualizationPane.render();
                 prevTime = currentTime;
@@ -59,6 +74,14 @@ public class simulationTimer {
 
     public boolean isActive() {
         return simActive;
+    }
+
+    public void setTimeMultiplier(double multiplier) {
+        this.timeMultiplier = Math.max(0.1, multiplier); // Ensure at least 0.1x speed min
+    }
+
+    public double getTimeMultiplier() {
+        return timeMultiplier;
     }
 
 }

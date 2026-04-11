@@ -52,6 +52,7 @@ public class HouseVisualizationPane extends Pane {
     private boolean darkMode = false;
 
     // Add-room draw mode
+    private boolean editMode = false;
     private boolean addRoomMode = false;
     private boolean isDraggingRoom = false;
     private double drawStartModelX;
@@ -75,6 +76,7 @@ public class HouseVisualizationPane extends Pane {
 
     private Consumer<String> statusMessageHandler;
     private Runnable houseChangedHandler;
+    private Consumer<Point2D> robotPlacementHandler;
 
     private static class DoorPositionSnapshot {
         private final Door door;
@@ -122,8 +124,13 @@ public class HouseVisualizationPane extends Pane {
 
         setOnMouseClicked(e -> {
             if (e.getTarget() == this && !addRoomMode) {
-                deselectRoom();
-                hoverTooltip.setVisible(false);
+                if (editMode) {
+                    deselectRoom();
+                    hoverTooltip.setVisible(false);
+                } else if (robotPlacementHandler != null) {
+                    Point2D model = sceneToModel(e.getSceneX(), e.getSceneY());
+                    robotPlacementHandler.accept(model);
+                }
             }
         });
 
@@ -136,7 +143,7 @@ public class HouseVisualizationPane extends Pane {
         this.getChildren().add(ghostRect);
 
         setOnMousePressed(e -> {
-            if (!addRoomMode || e.getTarget() != this)
+            if (!editMode || !addRoomMode || e.getTarget() != this)
                 return;
             Point2D model = sceneToModel(e.getSceneX(), e.getSceneY());
             drawStartModelX = model.getX();
@@ -147,7 +154,7 @@ public class HouseVisualizationPane extends Pane {
         });
 
         setOnMouseDragged(e -> {
-            if (!addRoomMode || !isDraggingRoom)
+            if (!editMode || !addRoomMode || !isDraggingRoom)
                 return;
             Point2D model = sceneToModel(e.getSceneX(), e.getSceneY());
             double x = Math.min(drawStartModelX, model.getX());
@@ -159,7 +166,7 @@ public class HouseVisualizationPane extends Pane {
         });
 
         setOnMouseReleased(e -> {
-            if (!addRoomMode || !isDraggingRoom)
+            if (!editMode || !addRoomMode || !isDraggingRoom)
                 return;
             isDraggingRoom = false;
             Point2D model = sceneToModel(e.getSceneX(), e.getSceneY());
@@ -197,6 +204,10 @@ public class HouseVisualizationPane extends Pane {
         });
 
         handle.setOnMousePressed(e -> {
+            if (!editMode) {
+                e.consume();
+                return;
+            }
             resizeEdge = edge;
             dragStartX = e.getSceneX();
             dragStartY = e.getSceneY();
@@ -245,6 +256,10 @@ public class HouseVisualizationPane extends Pane {
         this.houseChangedHandler = houseChangedHandler;
     }
 
+    public void setRobotPlacementHandler(Consumer<Point2D> robotPlacementHandler) {
+        this.robotPlacementHandler = robotPlacementHandler;
+    }
+
     public void render() {
         this.getChildren().retainAll(hoverTooltip, leftHandle, rightHandle, topHandle, bottomHandle,
                 ghostRect);
@@ -280,13 +295,15 @@ public class HouseVisualizationPane extends Pane {
         renderVacuum();
         renderDoors();
 
-        if (selectedRoomModel != null) {
+        if (selectedRoomModel != null && editMode) {
             if (selectedRoomRect != null) {
                 updateSelectedRoom();
             } else {
                 deselectRoom();
             }
             renderSharedWallHints(selectedRoomModel);
+        } else if (!editMode && selectedRoomModel != null) {
+            deselectRoom();
         }
 
         updateTooltipStyle();
@@ -307,14 +324,16 @@ public class HouseVisualizationPane extends Pane {
         frame.setArcWidth(18);
         frame.setArcHeight(18);
         frame.setFill(darkMode ? Color.web("#1a2530") : Color.web("#f7f8f9"));
-        frame.setStroke(darkMode ? Color.web("#2c3e4a") : Color.web("#c3ced4"));
-        frame.setStrokeWidth(1.6);
+        frame.setStroke(editMode ? (darkMode ? Color.web("#2f8cc4") : Color.web("#0f7b82"))
+                : (darkMode ? Color.web("#2c3e4a") : Color.web("#c3ced4")));
+        frame.setStrokeWidth(editMode ? 2.8 : 1.6);
         frame.setMouseTransparent(true);
 
         Rectangle workSurface = new Rectangle(px, py, planWidth, planHeight);
         workSurface.setFill(darkMode ? Color.web("#1e2c38") : Color.web("#fdfdfd"));
-        workSurface.setStroke(darkMode ? Color.web("#2c3e4a") : Color.web("#d8dfe3"));
-        workSurface.setStrokeWidth(1.2);
+        workSurface.setStroke(editMode ? (darkMode ? Color.web("#266d98") : Color.web("#6abdc3"))
+                : (darkMode ? Color.web("#2c3e4a") : Color.web("#d8dfe3")));
+        workSurface.setStrokeWidth(editMode ? 2.0 : 1.2);
         workSurface.setMouseTransparent(true);
 
         this.getChildren().addAll(frame, workSurface);
@@ -322,7 +341,8 @@ public class HouseVisualizationPane extends Pane {
 
     private void renderGrid(double planWidth, double planHeight, double minX, double minY,
             double maxX, double maxY) {
-        Color gridColor = darkMode ? Color.web("#2a3d4c") : Color.web("#d4dee4");
+        Color gridColor = editMode ? (darkMode ? Color.web("#2e7cae") : Color.web("#9dcfd3"))
+                : (darkMode ? Color.web("#2a3d4c") : Color.web("#d4dee4"));
         double planPx = CANVAS_PADDING;
         double planPy = CANVAS_PADDING;
 
@@ -424,7 +444,12 @@ public class HouseVisualizationPane extends Pane {
             });
 
             rect.setOnMouseClicked(e -> {
-                selectRoom(room, rect);
+                if (editMode) {
+                    selectRoom(room, rect);
+                } else if (robotPlacementHandler != null) {
+                    Point2D model = sceneToModel(e.getSceneX(), e.getSceneY());
+                    robotPlacementHandler.accept(model);
+                }
                 e.consume();
             });
 
@@ -950,12 +975,25 @@ public class HouseVisualizationPane extends Pane {
     // ── Add-room mode ────────────────────────────────────────────────────────
 
     public void setAddRoomMode(boolean enabled) {
-        addRoomMode = enabled;
+        addRoomMode = editMode && enabled;
         if (!enabled) {
             isDraggingRoom = false;
             ghostRect.setVisible(false);
         }
-        setCursor(enabled ? Cursor.CROSSHAIR : Cursor.DEFAULT);
+        setCursor(addRoomMode ? Cursor.CROSSHAIR : Cursor.DEFAULT);
+    }
+
+    public void setEditMode(boolean enabled) {
+        this.editMode = enabled;
+        if (!enabled) {
+            setAddRoomMode(false);
+            deselectRoom();
+        }
+        render();
+    }
+
+    public boolean isEditMode() {
+        return editMode;
     }
 
     private Point2D sceneToModel(double sceneX, double sceneY) {
