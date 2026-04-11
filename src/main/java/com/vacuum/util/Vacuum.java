@@ -1,10 +1,16 @@
 package com.vacuum.util;
 
+<<<<<<< HEAD
 import com.vacuum.model.VacuumConfig;
 import com.vacuum.model.Door;
 import com.vacuum.model.Door.Orientation;
 import com.vacuum.model.Room;
 import javafx.geometry.Rectangle2D;
+=======
+import com.vacuum.model.Door;
+import com.vacuum.model.Door.Orientation;
+import com.vacuum.model.Room;
+>>>>>>> origin/main
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.paint.Color;
@@ -13,8 +19,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> origin/main
 public class Vacuum {
     public double x;
     private double y;
@@ -25,12 +34,21 @@ public class Vacuum {
     public ImageView vImageView;
     public int moveMode = 1;
     private double battery = 100;
+<<<<<<< HEAD
+=======
+    private double batteryDrainRate = 5; // percentage per second (configurable)
+    private double lastSpeed = 0; // Track actual speed for display
+>>>>>>> origin/main
     // private VacuumConfig config;
     private Image image;
     private ImageView imageView;
     private List<Rectangle> wallColliders;
 
+<<<<<<< HEAD
     private static final double BATTERY_DRAIN_RATE = 5; // percentage per second
+=======
+    private static final double BATTERY_DRAIN_RATE_DEFAULT = 5; // percentage per second
+>>>>>>> origin/main
     private static final double VACUUM_SIZE = 2;
 
     public Vacuum(double x, double y) {
@@ -41,6 +59,7 @@ public class Vacuum {
         this.orientation = 0;
         image = new Image(getClass().getResourceAsStream("/vacuumRotated.png"));
         imageView = new ImageView();
+<<<<<<< HEAD
         wallColliders = new ArrayList<Rectangle>();
 
 
@@ -48,6 +67,13 @@ public class Vacuum {
 
 
     // move the vacuum using its x y coordinates
+=======
+        imageView.setImage(image);
+        wallColliders = new ArrayList<Rectangle>();
+    }
+
+    // old movement function, delete this after code has been merged if it isn't being used
+>>>>>>> origin/main
     public void move(double dx, double dy) {
         this.x += dx;
         this.y += dy;
@@ -62,9 +88,16 @@ public class Vacuum {
 
     }
 
+<<<<<<< HEAD
 
     // move the vacuum forward based on its local direction and time that has passed since last
     // frame
+=======
+    /*
+     * move the vacuum forward based on its local direction and time that has passed since last
+     * frame
+     */
+>>>>>>> origin/main
     public void forward(double speed, double deltaTime) {
         double distance = speed * deltaTime;
         double radians = Math.toRadians(orientation);
@@ -72,6 +105,10 @@ public class Vacuum {
         double dx = distance * Math.cos(radians);
         double dy = distance * Math.sin(radians);
 
+<<<<<<< HEAD
+=======
+        this.lastSpeed = speed; // Track speed
+>>>>>>> origin/main
         this.x += dx;
         this.y += dy;
     }
@@ -79,6 +116,7 @@ public class Vacuum {
     public void rotate(double rotationSpeed, double deltaTime) {
         double deltaAngle = rotationSpeed * deltaTime;
         this.orientation += deltaAngle;
+<<<<<<< HEAD
         // Keep angle in 0-360 range
         this.orientation = this.orientation % 360;
     }
@@ -88,6 +126,21 @@ public class Vacuum {
         if (this.battery > 0) {
             double rollbackX = this.x;
             double rollbackY = this.y;
+=======
+        // Keeps angle in 0-360 range
+        this.orientation = this.orientation % 360;
+    }
+
+    public void update(double deltaTime, double offsetX, double offsetY, double screenScale) {
+        // Drain battery and clamp to [0, 100]
+        this.battery -= batteryDrainRate * deltaTime;
+        this.battery = Math.max(0, Math.min(100, this.battery));
+
+        if (this.battery > 0) {
+            double rollbackX = this.x;
+            double rollbackY = this.y;
+            double rollbackSpeed = this.lastSpeed;
+>>>>>>> origin/main
             switch (moveMode) {
                 default:
                     alg1(deltaTime);
@@ -103,8 +156,14 @@ public class Vacuum {
                     break;
 
             }
+<<<<<<< HEAD
             testCollision(rollbackX, rollbackY);
         } else {
+=======
+            testCollision(rollbackX, rollbackY, rollbackSpeed, offsetX, offsetY, screenScale);
+        } else {
+            this.lastSpeed = 0;
+>>>>>>> origin/main
             System.out.println("Battery has run out");
         }
     }
@@ -128,6 +187,7 @@ public class Vacuum {
 
     }
 
+<<<<<<< HEAD
     private void testCollision(double rollbackX, double rollbackY) {
         Rectangle vacBounds = this.getBounds(0, 0, 10);
         double vx = this.x;
@@ -152,6 +212,54 @@ public class Vacuum {
 
     }
 
+=======
+    /**
+     * Improved collision detection with continuous collision checking for high-speed movement
+     */
+    private void testCollision(double rollbackX, double rollbackY, double lastSpeed, double offsetX,
+            double offsetY, double screenScale) {
+        // Check along the full travel path in world space so zoom/offset never affect collision.
+        double distance = Math.hypot(x - rollbackX, y - rollbackY);
+        int substeps = Math.max(1, (int) Math.ceil(distance / 0.10));
+        substeps = Math.min(substeps, 250);
+
+        double stepX = (x - rollbackX) / substeps;
+        double stepY = (y - rollbackY) / substeps;
+
+        for (int step = 1; step <= substeps; step++) {
+            double testX = rollbackX + (stepX * step);
+            double testY = rollbackY + (stepY * step);
+
+            if (checkCollisionAt(testX, testY, offsetX, offsetY, screenScale)) {
+                // Collision detected, restore to position before this step
+                x = rollbackX + (stepX * (step - 1));
+                y = rollbackY + (stepY * (step - 1));
+                return;
+            }
+        }
+    }
+
+    /**
+     * Check if there's a collision at the given position
+     */
+    private boolean checkCollisionAt(double testX, double testY, double offsetX, double offsetY,
+            double screenScale) {
+        Rectangle hitbox = new Rectangle();
+        hitbox.setX(testX);
+        hitbox.setY(testY);
+        hitbox.setWidth(VACUUM_SIZE);
+        hitbox.setHeight(VACUUM_SIZE);
+
+        for (Rectangle wall : wallColliders) {
+            if (hitbox.intersects(wall.getBoundsInLocal())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+
+>>>>>>> origin/main
     public double getX() {
         return x;
     }
@@ -176,6 +284,7 @@ public class Vacuum {
         return VACUUM_SIZE;
     }
 
+<<<<<<< HEAD
     public Rectangle getBounds(double offsetX, double offsetY, double scale) {
         Rectangle rect = new Rectangle();
         rect.setX(offsetX + x * scale);
@@ -193,6 +302,46 @@ public class Vacuum {
     public void createWallColliders(List<Room> rooms) {
         this.wallColliders = new ArrayList<Rectangle>();
         for (Room room : rooms) {
+=======
+    public double getBattery() {
+        return battery;
+    }
+
+    public double getSpeed() {
+        return lastSpeed;
+    }
+
+    public void setBatteryDrainRate(double drainRate) {
+        this.batteryDrainRate = Math.max(0, drainRate); // Ensure non-negative
+    }
+
+    public double getBatteryDrainRate() {
+        return batteryDrainRate;
+    }
+
+    public void setBattery(double newBattery) {
+        this.battery = Math.max(0, Math.min(100, newBattery)); // Clamp to [0, 100]
+    }
+
+    public void setPosition(double newX, double newY) {
+        this.x = newX;
+        this.y = newY;
+    }
+
+    public void setStartPosition(double newStartX, double newStartY) {
+        this.startX = newStartX;
+        this.startY = newStartY;
+    }
+
+    public void createWallColliders(List<Room> rooms) { // create walls of the house's rooms
+        this.wallColliders = new ArrayList<Rectangle>();
+        for (Room room : rooms) {
+
+            /*
+             * arrays representing a number line for the left to right side of each of the house's
+             * walls
+             */
+>>>>>>> origin/main
             ArrayList<Double> leftInterrupts = new ArrayList<Double>();
             ArrayList<Double> rightInterrupts = new ArrayList<Double>();
             ArrayList<Double> topInterrupts = new ArrayList<Double>();
@@ -207,6 +356,14 @@ public class Vacuum {
             bottomInterrupts.add(room.getMaxX());
 
             for (Door door : room.getDoors()) {
+<<<<<<< HEAD
+=======
+                /*
+                 * get door orientation to find hort/vertical orientation, then find where the door
+                 * overrlaps /w room. On success use the door's position & width/height to split up
+                 * the respective room wall number line
+                 */
+>>>>>>> origin/main
                 if (door.getOrientation() == Orientation.HORIZONTAL) {
                     if (door.getY() == room.getY()) {
                         topInterrupts.add(door.getX());
@@ -229,7 +386,10 @@ public class Vacuum {
                         System.err.println(door.getX());
                         System.err.println(room.getMaxX());
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/main
                     }
                 } else {
                     System.err.println("error getting door orientation");
@@ -241,6 +401,14 @@ public class Vacuum {
             Collections.sort(topInterrupts);
             Collections.sort(bottomInterrupts);
 
+<<<<<<< HEAD
+=======
+            /*
+             * get 2 numbers of array as rectangle span unless this room index is on the other side
+             * of an already created wall
+             */
+
+>>>>>>> origin/main
             for (int i = 0; i < leftInterrupts.size(); i += 2)
                 addColliderIfUnique(room.getX(), leftInterrupts.get(i), 0.1,
                         leftInterrupts.get(i + 1) - leftInterrupts.get(i));
