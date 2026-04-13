@@ -6,6 +6,7 @@ import com.vacuum.model.Room;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -162,18 +163,51 @@ public class Vacuum {
      */
     private boolean checkCollisionAt(double testX, double testY, double offsetX, double offsetY,
             double screenScale) {
-        Rectangle hitbox = new Rectangle();
-        hitbox.setX(testX);
-        hitbox.setY(testY);
-        hitbox.setWidth(VACUUM_SIZE);
-        hitbox.setHeight(VACUUM_SIZE);
+        Circle hitbox = new Circle();
+        hitbox.setCenterX(testX);
+        hitbox.setCenterY(testY);
+        hitbox.setRadius(VACUUM_SIZE);
+        // hitbox.setHeight(VACUUM_SIZE);
 
         for (Rectangle wall : wallColliders) {
-            if (hitbox.intersects(wall.getBoundsInLocal())) {
+            if (hitboxCollides(hitbox, wall)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private boolean hitboxCollides(Circle a, Rectangle b) {
+        double testX = a.getCenterX();
+        double testY = a.getCenterY();
+
+        /*
+         * Determine which edge of the rectangle is closest to the circle, then see if there is a
+         * collision using the Pythagorean Theorem
+         * https://www.jeffreythompson.org/collision-detection/circle-rect.php
+         */
+
+        if (a.getCenterX() < b.getX()) {
+            testX = b.getX();
+        } else if (a.getCenterX() > b.getX() + b.getWidth()) {
+            testX = b.getX() + b.getWidth();
+        }
+
+        if (a.getCenterY() < b.getY()) {
+            testY = b.getY();
+        } else if (a.getCenterY() > b.getY() + b.getHeight()) {
+            testY = b.getY() + b.getHeight();
+        }
+
+        double distX = a.getCenterX() - testX;
+        double distY = a.getCenterY() - testY;
+        double distance = Math.sqrt((distX * distX) + (distY * distY));
+        if (distance <= a.getRadius()) {
+            return true;
+        } else {
+            return false;
+        }
+
     }
 
 
