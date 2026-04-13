@@ -164,9 +164,9 @@ public class Vacuum {
     private boolean checkCollisionAt(double testX, double testY, double offsetX, double offsetY,
             double screenScale) {
         Circle hitbox = new Circle();
-        hitbox.setCenterX(testX);
-        hitbox.setCenterY(testY);
-        hitbox.setRadius(VACUUM_SIZE);
+        hitbox.setCenterX(testX + VACUUM_SIZE / 2);
+        hitbox.setCenterY(testY + VACUUM_SIZE / 2);
+        hitbox.setRadius(VACUUM_SIZE / 2);
         // hitbox.setHeight(VACUUM_SIZE);
 
         for (Rectangle wall : wallColliders) {
