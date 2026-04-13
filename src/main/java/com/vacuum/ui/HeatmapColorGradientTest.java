@@ -1,7 +1,9 @@
 package com.vacuum.ui;
 
 import java.awt.Color;
+import java.util.ArrayList;
 import com.vacuum.model.Room;
+import com.vacuum.ui.VacuumSimulatorApp;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.layout.GridPane;
@@ -21,23 +23,21 @@ public class HeatmapColorGradientTest {
         return new Color(r, g, b);
     }
 
-    // Get value from data table, maybe use the grid built into the UI visualization?
-    // I would have to double-check that it is strictly gridded and not just pixels I think
-    // It would need to be either houseGrid or viewGrid, but I need to figure out how to bring
-    // either one of those in
-    // From what I searched, each square would be a node and would likely receive the efficiency
-    // value when the vacuum passes over it
-    // Then use value in interpColor
-    // For now though when I add a second function to this class I get bracket errors for some
-    // reason
+    /*
+     * private GridPane makeHeatmapGridPane() { GridPane heatmapGridPane = new GridPane();
+     * heatmapGridPane.setHgap(20); heatmapGridPane.setVgap(16); int gridRows = 20; int gridColumns
+     * = 16; double[][] heatmapGrid = new double[gridRows][gridColumns];
+     * 
+     * for (int r = 0; r < gridRows; r++) { for (int c = 0; c < gridColumns; c++) {
+     * heatmapGrid[r][c] = Math.random(); Color gridSquareValue = interpColor(heatmapGrid[r][c],
+     * minColor, maxColor); } }
+     * 
+     * for (Room room : house.getRooms()) { makeHeatmapGridPane(); } // I can't get house and don't
+     * want to tread on anyone else's code }
+     */
 
     // Maybe include the transparency slider on the VacuumSimulatorApp.java file since that is a UI
     // thing
 
-    /*
-     * for (Room room : house.getRooms) { Canvas heatmapCanvas = new Canvas(room.getWidth(),
-     * room.getHeight()); GraphicsContext graphContext = heatmapCanvas.getGraphicsContext2D();
-     * 
-     * graphContext.setFill(Color.interpColor(0, minColor, maxColor)); (this one doesn't work) }
-     */
+
 }
