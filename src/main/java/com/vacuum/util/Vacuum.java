@@ -6,6 +6,7 @@ import com.vacuum.model.Room;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -162,7 +163,8 @@ public class Vacuum {
     }
 
     private void alg1(double deltaTime) {
-        this.forward(10, deltaTime);
+        this.forward(-10, deltaTime);
+        this.rotate(30, deltaTime);
     }
 
     private void alg2(double deltaTime) {
@@ -176,7 +178,7 @@ public class Vacuum {
         }
         this.lastSpeed = movementSpeed;
 
-        if (checkCollisionAt(this.x, this.y, 0, 0, 1)) {
+        if (checkCollisionAt(this.x, this.y)) {
             this.x = rollbackX;
             this.y = rollbackY + stepSize;
             movingRight = !movingRight;
@@ -210,7 +212,7 @@ public class Vacuum {
         this.y += dy;
         this.lastSpeed = movementSpeed;
 
-        if (checkCollisionAt(this.x, this.y, 0, 0, 1)) {
+        if (checkCollisionAt(this.x, this.y)) {
             this.x = rollbackX;
             this.y = rollbackY;
             randomDirection = Math.random() * 360;
@@ -236,7 +238,7 @@ public class Vacuum {
             double testX = rollbackX + (stepX * step);
             double testY = rollbackY + (stepY * step);
 
-            if (checkCollisionAt(testX, testY, offsetX, offsetY, screenScale)) {
+            if (checkCollisionAt(testX, testY)) {
                 // Collision detected, restore to position before this step
                 x = rollbackX + (stepX * (step - 1));
                 y = rollbackY + (stepY * (step - 1));
@@ -248,20 +250,53 @@ public class Vacuum {
     /**
      * Check if there's a collision at the given position
      */
-    private boolean checkCollisionAt(double testX, double testY, double offsetX, double offsetY,
-            double screenScale) {
-        Rectangle hitbox = new Rectangle();
-        hitbox.setX(testX);
-        hitbox.setY(testY);
-        hitbox.setWidth(VACUUM_SIZE);
-        hitbox.setHeight(VACUUM_SIZE);
+    private boolean checkCollisionAt(double testX, double testY) {
+        Circle hitbox = new Circle();
+        double circleOffset = VACUUM_SIZE / 2;
+        hitbox.setCenterX(testX + circleOffset);
+        hitbox.setCenterY(testY + circleOffset);
+        hitbox.setRadius(circleOffset);
 
         for (Rectangle wall : wallColliders) {
-            if (hitbox.intersects(wall.getBoundsInLocal())) {
+            if (hitboxCollides(hitbox, wall)) {
                 return true;
             }
         }
         return false;
+    }
+
+
+    private boolean hitboxCollides(Circle a, Rectangle b) {
+        double testX = a.getCenterX();
+        double testY = a.getCenterY();
+
+        /*
+         * Determine which edge of the rectangle is closest to the circle, then see if there is a
+         * collision using the Pythagorean Theorem
+         * https://www.jeffreythompson.org/collision-detection/circle-rect.php
+         */
+
+        if (a.getCenterX() < b.getX()) {
+            testX = b.getX();
+        } else if (a.getCenterX() > b.getX() + b.getWidth()) {
+            testX = b.getX() + b.getWidth();
+        }
+
+        if (a.getCenterY() < b.getY()) {
+            testY = b.getY();
+        } else if (a.getCenterY() > b.getY() + b.getHeight()) {
+            testY = b.getY() + b.getHeight();
+        }
+
+        double distX = a.getCenterX() - testX;
+        double distY = a.getCenterY() - testY;
+        double distance = Math.sqrt((distX * distX) + (distY * distY));
+        if (distance <= a.getRadius()) {
+            return true;
+        } else {
+            return false;
+        }
+
     }
 
 
