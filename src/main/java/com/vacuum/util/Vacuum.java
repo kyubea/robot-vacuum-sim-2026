@@ -163,8 +163,8 @@ public class Vacuum {
     }
 
     private void alg1(double deltaTime) {
-        this.forward(-10, deltaTime);
-        this.rotate(30, deltaTime);
+        this.forward(10, deltaTime);
+        // this.rotate(30, deltaTime);
     }
 
     private void alg2(double deltaTime) {
