@@ -48,6 +48,13 @@ public abstract class Obstruction {
     }
 
     /**
+     * Check if this obstruction intersects with another obstruction
+     */
+    public boolean intersects(Obstruction other) {
+        return this.intersects(other.x, other.y, other.width, other.height);
+    }
+
+    /**
      * Check if this obstruction intersects with a rectangular area
      */
     public boolean intersects(double rx, double ry, double rwidth, double rheight) {

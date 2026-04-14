@@ -464,8 +464,6 @@ public class HouseVisualizationPane extends Pane {
 
             rect.setOnMousePressed(e -> {
                 if (editMode && addObstructionMode) {
-                    System.out.println("Starting obstruction drag at: "
-                            + sceneToModel(e.getSceneX(), e.getSceneY()));
                     isDraggingObstruction = true;
                     Point2D model = sceneToModel(e.getSceneX(), e.getSceneY());
                     drawStartModelX = model.getX();

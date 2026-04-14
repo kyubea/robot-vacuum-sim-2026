@@ -161,10 +161,15 @@ public class House {
         if (obstruction == null) {
             throw new IllegalArgumentException("Obstruction cannot be null");
         }
+        for (Obstruction existing : obstructions) {
+            if (existing.intersects(obstruction)) {
+                throw new IllegalArgumentException(
+                        "Obstruction overlaps with existing obstruction: " + existing.toString());
+            }
+        }
         obstructions.add(obstruction);
         refreshSeedFromState();
     }
-
 
     /**
      * Remove an obstruction from the house
@@ -175,6 +180,31 @@ public class House {
         }
         obstructions.remove(obstruction);
         refreshSeedFromState();
+    }
+
+    /**
+     * Get list of obstructions in a specific room
+     */
+    public List<Obstruction> getRoomObstructions(Room room) {
+        List<Obstruction> result = new ArrayList<>();
+        for (Obstruction obstruction : obstructions) {
+            if (obstruction.getRoom() == room) {
+                result.add(obstruction);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Get a room at a specific point
+     */
+    public Room getRoomAt(double x, double y) {
+        for (Room room : rooms) {
+            if (room.contains(x, y)) {
+                return room;
+            }
+        }
+        return null;
     }
 
     /**
