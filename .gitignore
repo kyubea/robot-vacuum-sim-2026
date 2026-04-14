@@ -15,6 +15,7 @@ gradle-app.setting
 Thumbs.db
 
 # Java
+*bin/
 *.class
 *.jar
 *.war

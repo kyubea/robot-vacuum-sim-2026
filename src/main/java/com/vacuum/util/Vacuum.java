@@ -6,12 +6,44 @@ import com.vacuum.model.Room;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 public class Vacuum {
+    public enum MoveMode {
+        STRAIGHT(1, "Straight"), ZIG_ZAG(2, "Zig-Zag"), SPIRAL(3, "Spiral"), RANDOM_BOUNCE(4,
+                "Random Bounce");
+
+        private final int code;
+        private final String displayName;
+
+        MoveMode(int code, String displayName) {
+            this.code = code;
+            this.displayName = displayName;
+        }
+
+        public int getCode() {
+            return code;
+        }
+
+        public static MoveMode fromCode(int code) {
+            for (MoveMode mode : values()) {
+                if (mode.code == code) {
+                    return mode;
+                }
+            }
+            return STRAIGHT;
+        }
+
+        @Override
+        public String toString() {
+            return displayName;
+        }
+    }
+
     public double x;
     private double y;
     private double startX; // x & y to reset to on simulation start
@@ -19,7 +51,7 @@ public class Vacuum {
     private double orientation; // rotation angle in degrees
     public Image vImage;
     public ImageView vImageView;
-    public int moveMode = 1;
+    private int moveMode = MoveMode.STRAIGHT.getCode();
     private double battery = 100;
     private double batteryDrainRate = 5; // percentage per second (configurable)
     private double lastSpeed = 0; // Track actual speed for display
@@ -30,6 +62,19 @@ public class Vacuum {
 
     private static final double BATTERY_DRAIN_RATE_DEFAULT = 5; // percentage per second
     private static final double VACUUM_SIZE = 2;
+
+    // Zig-zag variables
+    private boolean movingRight = true;
+    private double stepSize = 5;
+    private double movementSpeed = 20;
+
+    // Spiral variables
+    private double spiralAngle = 0;
+    private double spiralRadius = 1;
+    private double spiralGrowth = 5;
+
+    // Random bounce variables
+    private double randomDirection = Math.random() * 360;
 
     public Vacuum(double x, double y) {
         this.x = x;
@@ -54,7 +99,12 @@ public class Vacuum {
         this.y = startY;
         this.orientation = 0;
         this.battery = batteryStart;
-        this.moveMode = moveMode;
+        setMoveMode(moveMode);
+        this.lastSpeed = 0;
+        this.movingRight = true;
+        this.spiralAngle = 0;
+        this.spiralRadius = 1;
+        this.randomDirection = Math.random() * 360;
 
     }
 
@@ -113,21 +163,61 @@ public class Vacuum {
     }
 
     private void alg1(double deltaTime) {
-        // placeholder movement alg, replace
         this.forward(10, deltaTime);
         // this.rotate(30, deltaTime);
-
     }
 
     private void alg2(double deltaTime) {
+        double rollbackX = this.x;
+        double rollbackY = this.y;
+
+        if (movingRight) {
+            this.x += movementSpeed * deltaTime;
+        } else {
+            this.x -= movementSpeed * deltaTime;
+        }
+        this.lastSpeed = movementSpeed;
+
+        if (checkCollisionAt(this.x, this.y)) {
+            this.x = rollbackX;
+            this.y = rollbackY + stepSize;
+            movingRight = !movingRight;
+            this.lastSpeed = stepSize / Math.max(deltaTime, 1e-9);
+        }
 
     }
 
     private void alg3(double deltaTime) {
+        spiralAngle += 2 * deltaTime;
+        spiralRadius += spiralGrowth * deltaTime;
+
+        double dx = spiralRadius * Math.cos(spiralAngle) * deltaTime;
+        double dy = spiralRadius * Math.sin(spiralAngle) * deltaTime;
+
+        this.x += dx;
+        this.y += dy;
+        this.lastSpeed = Math.hypot(dx, dy) / Math.max(deltaTime, 1e-9);
 
     }
 
     private void alg4(double deltaTime) {
+        double rollbackX = this.x;
+        double rollbackY = this.y;
+
+        double radians = Math.toRadians(randomDirection);
+        double dx = movementSpeed * Math.cos(radians) * deltaTime;
+        double dy = movementSpeed * Math.sin(radians) * deltaTime;
+
+        this.x += dx;
+        this.y += dy;
+        this.lastSpeed = movementSpeed;
+
+        if (checkCollisionAt(this.x, this.y)) {
+            this.x = rollbackX;
+            this.y = rollbackY;
+            randomDirection = Math.random() * 360;
+            this.lastSpeed = 0;
+        }
 
     }
 
@@ -148,7 +238,7 @@ public class Vacuum {
             double testX = rollbackX + (stepX * step);
             double testY = rollbackY + (stepY * step);
 
-            if (checkCollisionAt(testX, testY, offsetX, offsetY, screenScale)) {
+            if (checkCollisionAt(testX, testY)) {
                 // Collision detected, restore to position before this step
                 x = rollbackX + (stepX * (step - 1));
                 y = rollbackY + (stepY * (step - 1));
@@ -160,20 +250,53 @@ public class Vacuum {
     /**
      * Check if there's a collision at the given position
      */
-    private boolean checkCollisionAt(double testX, double testY, double offsetX, double offsetY,
-            double screenScale) {
-        Rectangle hitbox = new Rectangle();
-        hitbox.setX(testX);
-        hitbox.setY(testY);
-        hitbox.setWidth(VACUUM_SIZE);
-        hitbox.setHeight(VACUUM_SIZE);
+    private boolean checkCollisionAt(double testX, double testY) {
+        Circle hitbox = new Circle();
+        double circleOffset = VACUUM_SIZE / 2;
+        hitbox.setCenterX(testX + circleOffset);
+        hitbox.setCenterY(testY + circleOffset);
+        hitbox.setRadius(circleOffset);
 
         for (Rectangle wall : wallColliders) {
-            if (hitbox.intersects(wall.getBoundsInLocal())) {
+            if (hitboxCollides(hitbox, wall)) {
                 return true;
             }
         }
         return false;
+    }
+
+
+    private boolean hitboxCollides(Circle a, Rectangle b) {
+        double testX = a.getCenterX();
+        double testY = a.getCenterY();
+
+        /*
+         * Determine which edge of the rectangle is closest to the circle, then see if there is a
+         * collision using the Pythagorean Theorem
+         * https://www.jeffreythompson.org/collision-detection/circle-rect.php
+         */
+
+        if (a.getCenterX() < b.getX()) {
+            testX = b.getX();
+        } else if (a.getCenterX() > b.getX() + b.getWidth()) {
+            testX = b.getX() + b.getWidth();
+        }
+
+        if (a.getCenterY() < b.getY()) {
+            testY = b.getY();
+        } else if (a.getCenterY() > b.getY() + b.getHeight()) {
+            testY = b.getY() + b.getHeight();
+        }
+
+        double distX = a.getCenterX() - testX;
+        double distY = a.getCenterY() - testY;
+        double distance = Math.sqrt((distX * distX) + (distY * distY));
+        if (distance <= a.getRadius()) {
+            return true;
+        } else {
+            return false;
+        }
+
     }
 
 
@@ -219,6 +342,14 @@ public class Vacuum {
 
     public void setBattery(double newBattery) {
         this.battery = Math.max(0, Math.min(100, newBattery)); // Clamp to [0, 100]
+    }
+
+    public void setMoveMode(int modeCode) {
+        this.moveMode = MoveMode.fromCode(modeCode).getCode();
+    }
+
+    public int getMoveMode() {
+        return moveMode;
     }
 
     public void setPosition(double newX, double newY) {

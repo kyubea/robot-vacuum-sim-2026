@@ -80,6 +80,9 @@ public class VacuumSimulatorApp extends Application {
     private Label floorCoveringValueLabel;
     private Label seedValueLabel;
     private Label validStateValueLabel;
+    private long simulationChangeVersion = 0;
+    private long pausedSnapshotVersion = -1;
+    private boolean hasPausedSnapshot = false;
 
     @Override
     public void start(Stage primaryStage) {
@@ -165,6 +168,7 @@ public class VacuumSimulatorApp extends Application {
                 }
                 vacuum.setPosition(point.getX(), point.getY());
                 vacuum.setStartPosition(point.getX(), point.getY());
+                markSimulationChanged();
                 visualizationPane.render();
                 updateStatus(
                         String.format("Vacuum moved to (%.2f, %.2f)", point.getX(), point.getY()));
@@ -577,6 +581,7 @@ public class VacuumSimulatorApp extends Application {
             pauseItem.setDisable(false);
         });
         stopItem.setOnAction(e -> {
+            recordPausedSnapshot();
             simTimer.stop();
             setSimulationEditingEnabled(true);
             startItem.setDisable(false);
@@ -585,6 +590,7 @@ public class VacuumSimulatorApp extends Application {
             visualizationPane.render();
         });
         pauseItem.setOnAction(e -> {
+            recordPausedSnapshot();
             simTimer.stop();
             setSimulationEditingEnabled(true);
             startItem.setDisable(false);
@@ -594,7 +600,8 @@ public class VacuumSimulatorApp extends Application {
         resetItem.setOnAction(e -> {
             simTimer.stop();
             setSimulationEditingEnabled(true);
-            vacuum.reset(parametersPanel.getStartBattery(), 1);
+            vacuum.reset(parametersPanel.getStartBattery(), parametersPanel.getSelectedMoveMode());
+            clearPausedSnapshot();
             visualizationPane.render();
             startItem.setDisable(false);
             stopItem.setDisable(true);
@@ -844,6 +851,7 @@ public class VacuumSimulatorApp extends Application {
 
     private void refreshUiAfterModelChange(String statusMessage, boolean clearSelection,
             boolean rerender) {
+        markSimulationChanged();
         if (clearSelection) {
             visualizationPane.deselectRoom();
         }
@@ -930,6 +938,7 @@ public class VacuumSimulatorApp extends Application {
             stopButton.setDisable(false);
         });
         stopButton.setOnAction(e -> {
+            recordPausedSnapshot();
             simTimer.stop();
             setSimulationEditingEnabled(true);
             startButton.setDisable(false);
@@ -984,10 +993,35 @@ public class VacuumSimulatorApp extends Application {
         }
 
         int batteryLevel = parametersPanel.getStartBattery();
-        vacuum.setStartPosition(vacuum.getX(), vacuum.getY());
         setSimulationEditingEnabled(false);
-        simTimer.start(batteryLevel, 1);
+
+        if (hasPausedSnapshot && pausedSnapshotVersion == simulationChangeVersion) {
+            simTimer.resume();
+            updateStatus("Simulation resumed");
+        } else {
+            simTimer.start(batteryLevel, parametersPanel.getSelectedMoveMode());
+            updateStatus("Simulation started");
+        }
+
+        clearPausedSnapshot();
         return true;
+    }
+
+    private void markSimulationChanged() {
+        simulationChangeVersion++;
+        clearPausedSnapshot();
+    }
+
+    private void recordPausedSnapshot() {
+        if (simTimer.isActive()) {
+            hasPausedSnapshot = true;
+            pausedSnapshotVersion = simulationChangeVersion;
+        }
+    }
+
+    private void clearPausedSnapshot() {
+        hasPausedSnapshot = false;
+        pausedSnapshotVersion = -1;
     }
 
     /**
@@ -1006,6 +1040,7 @@ public class VacuumSimulatorApp extends Application {
         // Parameters panel
         parametersPanel = new ParametersPanel(vacuum, simTimer, visualizationPane);
         parametersPanel.setParametersEditable(true);
+        parametersPanel.setParametersChangedHandler(this::markSimulationChanged);
 
         // Scrollable container for both
         ScrollPane scrollPane = new ScrollPane();

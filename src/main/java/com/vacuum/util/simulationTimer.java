@@ -56,6 +56,12 @@ public class simulationTimer {
         simActive = true;
     }
 
+    public void resume() {
+        prevTime = System.nanoTime();
+        timer.start();
+        simActive = true;
+    }
+
     public void toggleSimTimer() {
         if (simActive == true) {
             stop();
