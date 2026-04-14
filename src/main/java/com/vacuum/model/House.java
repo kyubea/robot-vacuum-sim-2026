@@ -183,7 +183,7 @@ public class House {
     }
 
     /**
-     * Get list of obstructions in a specific room
+     * Get List of obstructions in a specific room
      */
     public List<Obstruction> getRoomObstructions(Room room) {
         List<Obstruction> result = new ArrayList<>();
@@ -196,7 +196,7 @@ public class House {
     }
 
     /**
-     * Get a room at a specific point
+     * Get room at a specific point
      */
     public Room getRoomAt(double x, double y) {
         for (Room room : rooms) {

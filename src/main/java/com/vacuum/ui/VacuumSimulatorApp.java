@@ -92,6 +92,7 @@ public class VacuumSimulatorApp extends Application {
         house = createDefaultHouse();
         vacuum = new Vacuum(20, 11.5);
         vacuum.createWallColliders(house.getRooms());
+        vacuum.addObstructions(house.getObstructions());
 
         // Create app shell
         root = new BorderPane();
@@ -857,6 +858,7 @@ public class VacuumSimulatorApp extends Application {
         }
         // Recreate vacuum wall colliders for the new house layout
         vacuum.createWallColliders(house.getRooms());
+        vacuum.addObstructions(house.getObstructions());
         if (rerender) {
             visualizationPane.render();
         }

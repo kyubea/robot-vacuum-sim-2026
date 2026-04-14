@@ -297,6 +297,7 @@ public class HouseVisualizationPane extends Pane {
         renderObstructions();
         renderVacuum();
         renderDoors();
+        // renderColliders();
 
         if (selectedRoomModel != null && editMode) {
             if (selectedRoomRect != null) {
