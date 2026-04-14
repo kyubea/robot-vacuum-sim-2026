@@ -6,8 +6,8 @@ package com.vacuum.model;
  */
 public class BlockingObstruction extends Obstruction {
 
-    public BlockingObstruction(double x, double y, double width, double height) {
-        super(x, y, width, height);
+    public BlockingObstruction(Room room, double x, double y, double width, double height) {
+        super(room, x, y, width, height);
     }
 
     @Override

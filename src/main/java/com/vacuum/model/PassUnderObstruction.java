@@ -11,13 +11,13 @@ public class PassUnderObstruction extends Obstruction {
     public static final double DEFAULT_LEG_DIAMETER = 2.0; // inches
     public static final double DEFAULT_SPACE_BETWEEN = 24.0; // inches
 
-    public PassUnderObstruction(double x, double y, double width, double height) {
-        this(x, y, width, height, DEFAULT_LEG_DIAMETER, DEFAULT_SPACE_BETWEEN);
+    public PassUnderObstruction(Room room, double x, double y, double width, double height) {
+        this(room, x, y, width, height, DEFAULT_LEG_DIAMETER, DEFAULT_SPACE_BETWEEN);
     }
 
-    public PassUnderObstruction(double x, double y, double width, double height, double legDiameter,
-            double spaceBetweenLegs) {
-        super(x, y, width, height);
+    public PassUnderObstruction(Room room, double x, double y, double width, double height,
+            double legDiameter, double spaceBetweenLegs) {
+        super(room, x, y, width, height);
         if (legDiameter <= 0 || spaceBetweenLegs <= 0) {
             throw new IllegalArgumentException("Leg dimensions must be positive");
         }

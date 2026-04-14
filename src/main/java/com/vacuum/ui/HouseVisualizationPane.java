@@ -54,7 +54,10 @@ public class HouseVisualizationPane extends Pane {
     // Add-room draw mode
     private boolean editMode = false;
     private boolean addRoomMode = false;
+    private boolean addObstructionMode = false;
+    private boolean addBlockingObstruction = true; // Only relevant if addObstructionMode is true
     private boolean isDraggingRoom = false;
+    private boolean isDraggingObstruction = false;
     private double drawStartModelX;
     private double drawStartModelY;
     private Rectangle ghostRect;
@@ -123,7 +126,7 @@ public class HouseVisualizationPane extends Pane {
         setupResizeHandle(bottomHandle, "bottom", Cursor.S_RESIZE);
 
         setOnMouseClicked(e -> {
-            if (e.getTarget() == this && !addRoomMode) {
+            if (e.getTarget() == this && !(addRoomMode || addObstructionMode)) {
                 if (editMode) {
                     deselectRoom();
                     hoverTooltip.setVisible(false);
@@ -420,6 +423,9 @@ public class HouseVisualizationPane extends Pane {
             }
 
             rect.setOnMouseEntered(e -> {
+                if (addObstructionMode) {
+                    return; // Don't show hover effects when in obstruction placement mode
+                }
                 if (selectedRoomModel != room) {
                     rect.setStroke(darkMode ? DARK_HOVER_COLOR : HOVER_COLOR);
                     rect.setStrokeWidth(3.0);
@@ -429,6 +435,9 @@ public class HouseVisualizationPane extends Pane {
             });
 
             rect.setOnMouseExited(e -> {
+                if (addObstructionMode) {
+                    return; // Don't show hover effects when in obstruction placement mode
+                }
                 if (selectedRoomModel != room) {
                     rect.setStroke(darkMode ? DARK_WALL_COLOR : WALL_COLOR);
                     rect.setStrokeWidth(2.0);
@@ -444,11 +453,63 @@ public class HouseVisualizationPane extends Pane {
             });
 
             rect.setOnMouseClicked(e -> {
-                if (editMode) {
+                if (editMode && !addObstructionMode) {
                     selectRoom(room, rect);
                 } else if (robotPlacementHandler != null) {
                     Point2D model = sceneToModel(e.getSceneX(), e.getSceneY());
                     robotPlacementHandler.accept(model);
+                }
+                e.consume();
+            });
+
+            rect.setOnMousePressed(e -> {
+                if (editMode && addObstructionMode) {
+                    System.out.println("Starting obstruction drag at: "
+                            + sceneToModel(e.getSceneX(), e.getSceneY()));
+                    isDraggingObstruction = true;
+                    Point2D model = sceneToModel(e.getSceneX(), e.getSceneY());
+                    drawStartModelX = model.getX();
+                    drawStartModelY = model.getY();
+                    updateGhostRect(drawStartModelX, drawStartModelY, 1.0, 1.0);
+                    e.consume();
+                }
+            });
+
+            rect.setOnMouseDragged(e -> {
+                if (isDraggingObstruction) {
+                    Point2D model = sceneToModel(e.getSceneX(), e.getSceneY());
+                    double x = Math.min(drawStartModelX, model.getX());
+                    double y = Math.min(drawStartModelY, model.getY());
+                    double w = Math.max(2.0, Math.abs(model.getX() - drawStartModelX));
+                    double h = Math.max(2.0, Math.abs(model.getY() - drawStartModelY));
+
+                    // Constrain the ghost rect to the room bounds
+                    x = Math.max(x, room.getX());
+                    y = Math.max(y, room.getY());
+                    w = Math.min(w, room.getX() + room.getWidth() - x);
+                    h = Math.min(h, room.getY() + room.getHeight() - y);
+                    updateGhostRect(x, y, w, h);
+                }
+                e.consume();
+            });
+
+            rect.setOnMouseReleased(e -> {
+                if (isDraggingObstruction) {
+                    isDraggingObstruction = false;
+                    Point2D model = sceneToModel(e.getSceneX(), e.getSceneY());
+                    double x = Math.min(drawStartModelX, model.getX());
+                    double y = Math.min(drawStartModelY, model.getY());
+                    double w = Math.max(2.0, Math.abs(model.getX() - drawStartModelX));
+                    double h = Math.max(2.0, Math.abs(model.getY() - drawStartModelY));
+
+                    // Constrain the ghost rect to the room bounds
+                    x = Math.max(x, room.getX());
+                    y = Math.max(y, room.getY());
+                    w = Math.min(w, room.getX() + room.getWidth() - x);
+                    h = Math.min(h, room.getY() + room.getHeight() - y);
+
+                    placeNewObstruction(room, x, y, w, h);
+                    ghostRect.setVisible(false);
                 }
                 e.consume();
             });
@@ -983,10 +1044,21 @@ public class HouseVisualizationPane extends Pane {
         setCursor(addRoomMode ? Cursor.CROSSHAIR : Cursor.DEFAULT);
     }
 
+    public void setAddObstructionMode(boolean enabled, boolean blocking) {
+        addObstructionMode = editMode && enabled;
+        this.addBlockingObstruction = blocking;
+        if (!enabled) {
+            isDraggingObstruction = false;
+            ghostRect.setVisible(false);
+        }
+        setCursor(addObstructionMode ? Cursor.CROSSHAIR : Cursor.DEFAULT);
+    }
+
     public void setEditMode(boolean enabled) {
         this.editMode = enabled;
         if (!enabled) {
             setAddRoomMode(false);
+            setAddObstructionMode(false, false);
             deselectRoom();
         }
         render();
@@ -1025,6 +1097,25 @@ public class HouseVisualizationPane extends Pane {
             notifyHouseChanged();
         } catch (IllegalArgumentException e) {
             notifyStatus("Cannot place room: " + e.getMessage());
+        }
+        render();
+    }
+
+    private void placeNewObstruction(Room room, double x, double y, double w, double h) {
+        if (house == null)
+            return;
+        try {
+            Obstruction newObstruction;
+            if (addBlockingObstruction) {
+                newObstruction = new BlockingObstruction(room, x, y, w, h);
+            } else {
+                newObstruction = new PassUnderObstruction(room, x, y, w, h);
+            }
+            house.addObstruction(newObstruction);
+            notifyStatus("Added obstruction (" + (int) w + " × " + (int) h + " ft)");
+            notifyHouseChanged();
+        } catch (IllegalArgumentException e) {
+            notifyStatus("Cannot place obstruction: " + e.getMessage());
         }
         render();
     }

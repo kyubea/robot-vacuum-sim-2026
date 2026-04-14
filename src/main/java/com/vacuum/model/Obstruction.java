@@ -5,16 +5,18 @@ package com.vacuum.model;
  */
 public abstract class Obstruction {
     private final String id;
+    private Room room;
     private double x; // Position X (feet)
     private double y; // Position Y (feet)
     private double width; // Width in feet
     private double height; // Height in feet
 
-    protected Obstruction(double x, double y, double width, double height) {
+    protected Obstruction(Room room, double x, double y, double width, double height) {
         if (width <= 0 || height <= 0) {
             throw new IllegalArgumentException("Obstruction dimensions must be positive");
         }
         this.id = java.util.UUID.randomUUID().toString();
+        this.room = room;
         this.x = x;
         this.y = y;
         this.width = width;
@@ -74,8 +76,14 @@ public abstract class Obstruction {
         return height;
     }
 
+    public Room getRoom() {
+        return room;
+    }
+
     // Setters for repositioning
     public void setPosition(double x, double y) {
+        // N.B. ??? Should we check if new position is valid within the room bounds? How do we set
+        // width and height?
         this.x = x;
         this.y = y;
     }
