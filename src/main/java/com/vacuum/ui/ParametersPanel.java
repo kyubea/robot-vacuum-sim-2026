@@ -29,12 +29,14 @@ public class ParametersPanel extends VBox {
     // Adjustable parameters
     private Spinner<Integer> batteryDrainSpinner;
     private Spinner<Integer> batteryStartSpinner;
+    private ComboBox<Vacuum.MoveMode> movementAlgorithmCombo;
 
     // Speed multiplier buttons
     private ToggleButton speed1xButton;
     private ToggleButton speed2xButton;
     private ToggleButton speed10xButton;
     private Label speedMultiplierLabel;
+    private Runnable parametersChangedHandler;
 
     public ParametersPanel(Vacuum vacuum, simulationTimer simTimer,
             HouseVisualizationPane visualizationPane) {
@@ -170,6 +172,7 @@ public class ParametersPanel extends VBox {
         batteryDrainSpinner.setEditable(true);
         batteryDrainSpinner.valueProperty().addListener((obs, oldVal, newVal) -> {
             vacuum.setBatteryDrainRate(newVal);
+            notifyParametersChanged();
         });
         addParameterRowWithSpinner(grid, 0, "Battery Drain (%/s)", batteryDrainSpinner,
                 "Adjust how quickly battery drains during simulation");
@@ -177,8 +180,24 @@ public class ParametersPanel extends VBox {
         // Battery Start Value
         batteryStartSpinner = new Spinner<>(0, 100, 100, 5);
         batteryStartSpinner.setEditable(true);
+        batteryStartSpinner.valueProperty().addListener((obs, oldVal, newVal) -> {
+            notifyParametersChanged();
+        });
         addParameterRowWithSpinner(grid, 1, "Start Battery (%)", batteryStartSpinner,
                 "Set initial battery level for next simulation");
+
+        // Movement algorithm
+        movementAlgorithmCombo = new ComboBox<>();
+        movementAlgorithmCombo.getItems().addAll(Vacuum.MoveMode.values());
+        movementAlgorithmCombo.setValue(Vacuum.MoveMode.STRAIGHT);
+        movementAlgorithmCombo.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                vacuum.setMoveMode(newVal.getCode());
+                notifyParametersChanged();
+            }
+        });
+        addParameterRowWithComboBox(grid, 2, "Movement Algorithm", movementAlgorithmCombo,
+                "Choose how the vacuum moves during simulation");
 
         Label noteLabel = new Label("Click on the canvas to move the vacuum to a location.");
         noteLabel.setWrapText(true);
@@ -207,6 +226,24 @@ public class ParametersPanel extends VBox {
 
         grid.add(nameLabel, 0, row);
         grid.add(valueControl, 1, row);
+    }
+
+    private void addParameterRowWithComboBox(GridPane grid, int row, String label,
+            ComboBox<?> comboBox, String tooltip) {
+        Label nameLabel = new Label(label);
+        nameLabel.getStyleClass().add("metric-label");
+        GridPane.setHgrow(comboBox, Priority.ALWAYS);
+        comboBox.setMaxWidth(Double.MAX_VALUE);
+
+        if (tooltip != null) {
+            Tooltip tip = new Tooltip(tooltip);
+            tip.setWrapText(true);
+            tip.setPrefWidth(250);
+            nameLabel.setTooltip(tip);
+        }
+
+        grid.add(nameLabel, 0, row);
+        grid.add(comboBox, 1, row);
     }
 
     /**
@@ -256,6 +293,7 @@ public class ParametersPanel extends VBox {
                 speed2xButton.setSelected(button == speed2xButton);
                 speed10xButton.setSelected(button == speed10xButton);
             }
+            notifyParametersChanged();
         });
 
         return button;
@@ -315,12 +353,28 @@ public class ParametersPanel extends VBox {
         return batteryStartSpinner.getValue();
     }
 
+    public int getSelectedMoveMode() {
+        Vacuum.MoveMode selected = movementAlgorithmCombo.getValue();
+        return selected != null ? selected.getCode() : Vacuum.MoveMode.STRAIGHT.getCode();
+    }
+
     public void setParametersEditable(boolean editable) {
         batteryDrainSpinner.setDisable(!editable);
         batteryStartSpinner.setDisable(!editable);
+        movementAlgorithmCombo.setDisable(!editable);
         speed1xButton.setDisable(!editable);
         speed2xButton.setDisable(!editable);
         speed10xButton.setDisable(!editable);
+    }
+
+    public void setParametersChangedHandler(Runnable parametersChangedHandler) {
+        this.parametersChangedHandler = parametersChangedHandler;
+    }
+
+    private void notifyParametersChanged() {
+        if (parametersChangedHandler != null) {
+            parametersChangedHandler.run();
+        }
     }
 
     public void setDarkMode(boolean darkMode) {
