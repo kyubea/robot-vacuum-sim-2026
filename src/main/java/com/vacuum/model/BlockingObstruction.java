@@ -1,13 +1,19 @@
 package com.vacuum.model;
 
+import javafx.scene.shape.Rectangle;
+
 /**
  * Blocking obstruction that vacuum cannot traverse. Examples: chests, low furniture, appliances.
  * Req 3.2, 3.3: Vacuum shall not traverse blocking obstructions
  */
 public class BlockingObstruction extends Obstruction {
 
-    public BlockingObstruction(double x, double y, double width, double height) {
-        super(x, y, width, height);
+    public BlockingObstruction(Room room, double x, double y, double width, double height) {
+        super(room, x, y, width, height);
+    }
+
+    public Rectangle getObstructedRectangle() {
+        return new Rectangle(getX(), getY(), getWidth(), getHeight());
     }
 
     @Override
