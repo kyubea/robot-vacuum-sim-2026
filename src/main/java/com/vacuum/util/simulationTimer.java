@@ -39,6 +39,7 @@ public class simulationTimer {
                         double step = Math.min(maxStep, remaining);
                         vacuum.update(step, visualizationPane.getOffsetX(),
                                 visualizationPane.getOffsetY(), visualizationPane.getScale());
+                        visualizationPane.updateCleaningFromVacuumFrontHitbox();
                         remaining -= step;
                         iterations++;
                     }
@@ -51,6 +52,7 @@ public class simulationTimer {
 
     public void start(double startBattery, int moveMode) {
         vacuum.reset(startBattery, moveMode);
+        visualizationPane.resetCleaningMap();
         prevTime = System.nanoTime();
         timer.start();
         simActive = true;
