@@ -1,5 +1,8 @@
 package com.vacuum.util;
 
+import com.vacuum.model.Obstruction;
+import com.vacuum.model.BlockingObstruction;
+import com.vacuum.model.PassUnderObstruction;
 import com.vacuum.model.Door;
 import com.vacuum.model.Door.Orientation;
 import com.vacuum.model.Room;
@@ -105,7 +108,6 @@ public class Vacuum {
         this.spiralAngle = 0;
         this.spiralRadius = 1;
         this.randomDirection = Math.random() * 360;
-
     }
 
     /*
@@ -299,7 +301,6 @@ public class Vacuum {
 
     }
 
-
     public double getX() {
         return x;
     }
@@ -465,5 +466,48 @@ public class Vacuum {
 
     public List<Rectangle> getWallColliders() {
         return this.wallColliders;
+    }
+
+    /**
+     * Add colliders for obstructions. Blocking obstructions are treated as full colliders, while
+     * pass-under obstructions only have colliders for their legs, allowing the vacuum to pass
+     * through the open space between legs.
+     *
+     * I'm abusing the "wallColliders" list to also store obstruction colliders since they function
+     * the same for collision detection. This way we don't need to check multiple lists for
+     * collisions, just one.
+     */
+    public void addObstructions(List<Obstruction> obstructions) {
+        for (Obstruction obstruction : obstructions) {
+            if (obstruction instanceof BlockingObstruction) {
+                // Blocking obstructions are treated as full colliders
+                BlockingObstruction block = (BlockingObstruction) obstruction;
+                wallColliders.add(block.getObstructedRectangle());
+            } else {
+                // For pass-under obstructions, we add colliders for the legs only, not the whole
+                // area.
+                PassUnderObstruction pass = (PassUnderObstruction) obstruction;
+                // Leg 1: LL corner of obstruction
+                Rectangle rect = new Rectangle(pass.getX(), pass.getY(), pass.getLegDiameter(),
+                        pass.getLegDiameter());
+                wallColliders.add(rect);
+                // Leg 2: LR corner of obstruction
+                rect = new Rectangle(
+                        pass.getX() + pass.getHSpaceBetweenLegs() - pass.getLegDiameter(),
+                        pass.getY(), pass.getLegDiameter(), pass.getLegDiameter());
+                wallColliders.add(rect);
+                // Leg 3: UR corner of obstruction
+                rect = new Rectangle(
+                        pass.getX() + pass.getHSpaceBetweenLegs() - pass.getLegDiameter(),
+                        pass.getY() + pass.getVSpaceBetweenLegs() - pass.getLegDiameter(),
+                        pass.getLegDiameter(), pass.getLegDiameter());
+                wallColliders.add(rect);
+                // Leg 4: UL corner of obstruction
+                rect = new Rectangle(pass.getX(),
+                        pass.getY() + pass.getVSpaceBetweenLegs() - pass.getLegDiameter(),
+                        pass.getLegDiameter(), pass.getLegDiameter());
+                wallColliders.add(rect);
+            }
+        }
     }
 }

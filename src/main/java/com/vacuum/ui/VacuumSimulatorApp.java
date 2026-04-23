@@ -62,6 +62,7 @@ public class VacuumSimulatorApp extends Application {
     private ToggleButton editModeToggle;
     private ToggleButton addRoomToggle;
     private ToggleButton addObstructionToggle;
+    private CheckBox blockingObstructionCheckBox;
     private Label editModeIndicatorLabel;
     private Rectangle editModeOutline;
     private boolean darkModeActive = false;
@@ -91,6 +92,7 @@ public class VacuumSimulatorApp extends Application {
         house = createDefaultHouse();
         vacuum = new Vacuum(20, 11.5);
         vacuum.createWallColliders(house.getRooms());
+        vacuum.addObstructions(house.getObstructions());
 
         // Create app shell
         root = new BorderPane();
@@ -243,6 +245,7 @@ public class VacuumSimulatorApp extends Application {
                 addRoomToggle.setSelected(false);
                 if (addObstructionToggle != null) {
                     addObstructionToggle.setSelected(false);
+                    visualizationPane.setAddObstructionMode(false, false);
                 }
                 visualizationPane.setAddRoomMode(false);
                 updateEditModeIndicator("Mode: Select Room", false);
@@ -321,6 +324,10 @@ public class VacuumSimulatorApp extends Application {
 
         addObstructionToggle = new ToggleButton("+ Obstruction");
         addObstructionToggle.getStyleClass().add("strip-button");
+
+        blockingObstructionCheckBox = new CheckBox("Blocking");
+        blockingObstructionCheckBox.setDisable(true);
+
         addObstructionToggle.setOnAction(e -> {
             if (!visualizationPane.isEditMode() || simTimer.isActive()) {
                 addObstructionToggle.setSelected(false);
@@ -328,10 +335,15 @@ public class VacuumSimulatorApp extends Application {
             }
 
             boolean active = addObstructionToggle.isSelected();
+            boolean blocking = blockingObstructionCheckBox.isSelected();
+            visualizationPane.setAddObstructionMode(active, blocking);
+            blockingObstructionCheckBox.setDisable(!active);
             if (active) {
                 addRoomToggle.setSelected(false);
                 visualizationPane.setAddRoomMode(false);
                 updateEditModeIndicator("Mode: New Obstruction (placeholder)", true);
+                updateEditModeIndicator(blocking ? "Mode: New Blocking Obstruction"
+                        : "Mode: New Non-Blocking Obstruction", true);
                 updateEditModeVisuals(true, getObstructionModeColor());
                 updateStatus("Obstruction placement is not implemented yet.");
             } else {
@@ -340,8 +352,19 @@ public class VacuumSimulatorApp extends Application {
             }
         });
 
+        blockingObstructionCheckBox.getStyleClass().add("strip-button");
+        blockingObstructionCheckBox.setOnAction(e -> {
+            boolean active = addObstructionToggle.isSelected();
+            boolean blocking = blockingObstructionCheckBox.isSelected();
+            visualizationPane.setAddObstructionMode(active, blocking);
+            if (addObstructionToggle.isSelected()) {
+                updateEditModeIndicator(blocking ? "Mode: New Blocking Obstruction"
+                        : "Mode: New Non-Blocking Obstruction", true);
+            }
+        });
+
         editActionsStrip.getChildren().addAll(editActionsLabel, addRoomToggle, addObstructionToggle,
-                editModeIndicatorLabel);
+                blockingObstructionCheckBox, editModeIndicatorLabel);
         return editActionsStrip;
     }
 
@@ -812,8 +835,8 @@ public class VacuumSimulatorApp extends Application {
             h.addDoor(door3);
 
             // Add some test obstructions
-            BlockingObstruction couch = new BlockingObstruction(5, 5, 6, 3);
-            PassUnderObstruction table = new PassUnderObstruction(15, 22, 4, 3);
+            BlockingObstruction couch = new BlockingObstruction(livingRoom, 5, 5, 6, 3);
+            PassUnderObstruction table = new PassUnderObstruction(bedroom, 15, 22, 4, 3);
 
             h.addObstruction(couch);
             h.addObstruction(table);
@@ -835,6 +858,7 @@ public class VacuumSimulatorApp extends Application {
         }
         // Recreate vacuum wall colliders for the new house layout
         vacuum.createWallColliders(house.getRooms());
+        vacuum.addObstructions(house.getObstructions());
         if (rerender) {
             visualizationPane.render();
         }
