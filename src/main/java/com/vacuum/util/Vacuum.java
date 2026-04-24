@@ -6,6 +6,7 @@ import com.vacuum.model.PassUnderObstruction;
 import com.vacuum.model.Door;
 import com.vacuum.model.Door.Orientation;
 import com.vacuum.model.Room;
+import com.vacuum.model.VacuumConfig;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.paint.Color;
@@ -17,7 +18,7 @@ import java.util.List;
 
 public class Vacuum {
     public enum MoveMode {
-        STRAIGHT(1, "Straight"), ZIG_ZAG(2, "Zig-Zag"), SPIRAL(3, "Spiral"), RANDOM_BOUNCE(4,
+        STRAIGHT(1, "Wall Snake"), ZIG_ZAG(2, "Zig-Zag"), SPIRAL(3, "Spot Spiral"), RANDOM_BOUNCE(4,
                 "Random Bounce");
 
         private final int code;
@@ -33,6 +34,10 @@ public class Vacuum {
         }
 
         public static MoveMode fromCode(int code) {
+            if (code == 5) {
+                // Backward compatibility with older saved layouts that used Spot Spiral code 5.
+                return SPIRAL;
+            }
             for (MoveMode mode : values()) {
                 if (mode.code == code) {
                     return mode;
@@ -56,28 +61,52 @@ public class Vacuum {
     public ImageView vImageView;
     private int moveMode = MoveMode.STRAIGHT.getCode();
     private double battery = 100;
-    private double batteryDrainRate = 5; // percentage per second (configurable)
+    private double batteryDrainRate = BATTERY_DRAIN_RATE_DEFAULT; // percentage per second
     private double lastSpeed = 0; // Track actual speed for display
     // private VacuumConfig config;
     private Image image;
     private ImageView imageView;
     private List<Rectangle> wallColliders;
 
-    private static final double BATTERY_DRAIN_RATE_DEFAULT = 5; // percentage per second
-    private static final double VACUUM_SIZE = 1;
+    // ~90 minute runtime from full charge => about 0.0185% per second.
+    private static final double BATTERY_DRAIN_RATE_DEFAULT = 100.0 / (90.0 * 60.0);
+    private static final double VACUUM_SIZE = VacuumConfig.DIAMETER / 12.0;
+    private static final double COLLISION_RADIUS_RATIO = 0.46;
+    private static final double DEFAULT_MOVE_SPEED_FT_PER_SEC = 1.0;
+    private static final double MIN_MOVE_SPEED_FT_PER_SEC = 0.25;
+    private static final double MAX_MOVE_SPEED_FT_PER_SEC = 3.0;
 
     // Zig-zag variables
-    private boolean movingRight = true;
-    private double stepSize = 5;
-    private double movementSpeed = 20;
+    private double laneAdvance = 0.9;
+    private double moveSpeedFeetPerSec = DEFAULT_MOVE_SPEED_FT_PER_SEC;
+    private ZigZagPhase zigZagPhase = ZigZagPhase.SWEEP;
+    private double zigZagTurnTarget = 0;
+    private double zigZagLaneStartX = 0;
+    private double zigZagLaneStartY = 0;
+    private double zigZagSweepHeading = 0;
+    private int zigZagLaneDirection = 1;
 
     // Spiral variables
-    private double spiralAngle = 0;
-    private double spiralRadius = 1;
-    private double spiralGrowth = 5;
+    private double spiralRadius = 0.75;
+
+    // Wall-follow (straight mode) variables
+    private double wallFollowTargetHeading = 0;
+
+    // Spot-spiral variables
+    private double spotSpiralTargetHeading = 0;
+    private boolean spotSpiralTurning = false;
+
+    private enum ZigZagPhase {
+        SWEEP, TURN_TO_LANE, LANE_SHIFT, TURN_TO_SWEEP
+    }
 
     // Random bounce variables
     private double randomDirection = Math.random() * 360;
+
+    // Recovery state for algorithm hardening around doors and corners
+    private double stuckTimeSeconds = 0;
+    private double recoveryTargetHeading = 0;
+    private boolean recoveringFromStuck = false;
 
     public Vacuum(double x, double y) {
         this.x = x;
@@ -104,10 +133,17 @@ public class Vacuum {
         this.battery = batteryStart;
         setMoveMode(moveMode);
         this.lastSpeed = 0;
-        this.movingRight = true;
-        this.spiralAngle = 0;
-        this.spiralRadius = 1;
+        this.spiralRadius = 0.75;
         this.randomDirection = Math.random() * 360;
+        this.zigZagPhase = ZigZagPhase.SWEEP;
+        this.zigZagSweepHeading = this.orientation;
+        this.zigZagLaneDirection = 1;
+        this.wallFollowTargetHeading = this.orientation;
+        this.spotSpiralTurning = false;
+        this.spotSpiralTargetHeading = this.orientation;
+        this.stuckTimeSeconds = 0;
+        this.recoveringFromStuck = false;
+        this.recoveryTargetHeading = this.orientation;
     }
 
     /*
@@ -142,7 +178,16 @@ public class Vacuum {
         if (this.battery > 0) {
             double rollbackX = this.x;
             double rollbackY = this.y;
-            double rollbackSpeed = this.lastSpeed;
+
+            if (recoveringFromStuck) {
+                rotateToward(recoveryTargetHeading, 220.0, deltaTime);
+                if (isAngleClose(orientation, recoveryTargetHeading, 3.0)) {
+                    recoveringFromStuck = false;
+                }
+                this.lastSpeed = 0;
+                return;
+            }
+
             switch (moveMode) {
                 default:
                     alg1(deltaTime);
@@ -158,7 +203,21 @@ public class Vacuum {
                     break;
 
             }
-            testCollision(rollbackX, rollbackY, rollbackSpeed, offsetX, offsetY, screenScale);
+
+            boolean collided = testCollision(rollbackX, rollbackY, offsetX, offsetY, screenScale);
+            double movedDistance = Math.hypot(x - rollbackX, y - rollbackY);
+
+            if ((collided || movedDistance < 0.01) && this.lastSpeed > 0.05) {
+                stuckTimeSeconds += deltaTime;
+            } else {
+                stuckTimeSeconds = Math.max(0.0, stuckTimeSeconds - deltaTime * 2.0);
+            }
+
+            if (stuckTimeSeconds > 1.0) {
+                recoveringFromStuck = true;
+                recoveryTargetHeading = normalizeAngle(orientation + 70.0 + Math.random() * 80.0);
+                stuckTimeSeconds = 0;
+            }
         } else {
             this.lastSpeed = 0;
             System.out.println("Battery has run out");
@@ -166,76 +225,191 @@ public class Vacuum {
     }
 
     private void alg1(double deltaTime) {
-        this.forward(10, deltaTime);
-        // this.rotate(30, deltaTime);
+        // Straight mode now behaves like practical wall-follow cleaning: hug a wall and snake.
+        double speed = moveSpeedFeetPerSec;
+        double turnRate = 120.0;
+
+        double aheadDistance = distanceToObstacle(orientation, 2.0);
+        double leftNearDistance = distanceToObstacle(orientation - 90.0, 2.0);
+        double leftFarDistance = distanceToObstacle(orientation - 90.0, 4.0);
+
+        if (aheadDistance < VACUUM_SIZE * 0.7) {
+            // Corner or dead-end: turn right naturally and keep wall-follow continuity.
+            wallFollowTargetHeading = normalizeAngle(orientation + 82.0);
+        } else if (leftFarDistance < 3.95) {
+            // We can sense a wall on the left: steer to hold a soft stand-off distance.
+            double desiredLeftGap = 1.1;
+            double error = desiredLeftGap - leftNearDistance;
+            double steering = Math.max(-16.0, Math.min(16.0, error * 26.0));
+            wallFollowTargetHeading = normalizeAngle(orientation - steering);
+        } else {
+            // No nearby wall: keep current heading instead of turning in circles.
+            wallFollowTargetHeading = orientation;
+        }
+
+        rotateToward(wallFollowTargetHeading, turnRate, deltaTime);
+        if (!isObstacleNear(orientation, VACUUM_SIZE * 0.45)) {
+            forward(speed, deltaTime);
+        } else {
+            this.lastSpeed = 0;
+        }
     }
 
     private void alg2(double deltaTime) {
-        double rollbackX = this.x;
-        double rollbackY = this.y;
+        double speed = moveSpeedFeetPerSec;
+        double turnRate = 160.0;
+        double laneHeading = normalizeAngle(zigZagSweepHeading + 90.0 * zigZagLaneDirection);
 
-        if (movingRight) {
-            double dx = movementSpeed * deltaTime;
-            this.x += dx;
-            alignOrientationWithVector(dx, 0);
-        } else {
-            double dx = -movementSpeed * deltaTime;
-            this.x += dx;
-            alignOrientationWithVector(dx, 0);
-        }
-        this.lastSpeed = movementSpeed;
-
-        if (checkCollisionAt(this.x, this.y)) {
-            this.x = rollbackX;
-            this.y = rollbackY + stepSize;
-            alignOrientationWithVector(0, stepSize);
-            movingRight = !movingRight;
-            this.lastSpeed = stepSize / Math.max(deltaTime, 1e-9);
+        switch (zigZagPhase) {
+            case SWEEP:
+                rotateToward(zigZagSweepHeading, turnRate, deltaTime);
+                if (isObstacleNear(orientation, VACUUM_SIZE * 0.70)) {
+                    zigZagPhase = ZigZagPhase.TURN_TO_LANE;
+                    zigZagTurnTarget = laneHeading;
+                    break;
+                }
+                forward(speed, deltaTime);
+                break;
+            case TURN_TO_LANE:
+                rotateToward(zigZagTurnTarget, turnRate, deltaTime);
+                if (isAngleClose(orientation, zigZagTurnTarget, 3.0)) {
+                    zigZagPhase = ZigZagPhase.LANE_SHIFT;
+                    zigZagLaneStartX = x;
+                    zigZagLaneStartY = y;
+                }
+                this.lastSpeed = 0;
+                break;
+            case LANE_SHIFT:
+                if (!isObstacleNear(orientation, VACUUM_SIZE * 0.60)) {
+                    forward(speed * 0.7, deltaTime);
+                }
+                double laneDistance = Math.hypot(x - zigZagLaneStartX, y - zigZagLaneStartY);
+                if (laneDistance >= Math.max(0.5, laneAdvance)
+                        || isObstacleNear(orientation, VACUUM_SIZE * 0.60)) {
+                    if (laneDistance < 0.20) {
+                        // Lane shift blocked quickly; swap side to avoid thrashing same corridor.
+                        zigZagLaneDirection *= -1;
+                    }
+                    zigZagSweepHeading = normalizeAngle(zigZagSweepHeading + 180.0);
+                    zigZagTurnTarget = zigZagSweepHeading;
+                    zigZagPhase = ZigZagPhase.TURN_TO_SWEEP;
+                }
+                break;
+            case TURN_TO_SWEEP:
+                rotateToward(zigZagTurnTarget, turnRate, deltaTime);
+                if (isAngleClose(orientation, zigZagTurnTarget, 3.0)) {
+                    zigZagPhase = ZigZagPhase.SWEEP;
+                }
+                this.lastSpeed = 0;
+                break;
+            default:
+                zigZagPhase = ZigZagPhase.SWEEP;
+                break;
         }
 
     }
 
     private void alg3(double deltaTime) {
-        spiralAngle += 2 * deltaTime;
-        spiralRadius += spiralGrowth * deltaTime;
-
-        double dx = spiralRadius * Math.cos(spiralAngle) * deltaTime;
-        double dy = spiralRadius * Math.sin(spiralAngle) * deltaTime;
-
-        this.x += dx;
-        this.y += dy;
-        alignOrientationWithVector(dx, dy);
-        this.lastSpeed = Math.hypot(dx, dy) / Math.max(deltaTime, 1e-9);
+        // Spiral mode replaced by spot-spiral behavior for a more realistic consumer profile.
+        alg5(deltaTime);
 
     }
 
     private void alg4(double deltaTime) {
-        double rollbackX = this.x;
-        double rollbackY = this.y;
+        double speed = moveSpeedFeetPerSec;
+        double turnRate = 180.0;
 
-        double radians = Math.toRadians(randomDirection);
-        double dx = movementSpeed * Math.cos(radians) * deltaTime;
-        double dy = movementSpeed * Math.sin(radians) * deltaTime;
-
-        this.x += dx;
-        this.y += dy;
-        alignOrientationWithVector(dx, dy);
-        this.lastSpeed = movementSpeed;
-
-        if (checkCollisionAt(this.x, this.y)) {
-            this.x = rollbackX;
-            this.y = rollbackY;
-            randomDirection = Math.random() * 360;
-            this.orientation = randomDirection;
-            this.lastSpeed = 0;
+        if (isObstacleNear(randomDirection, VACUUM_SIZE * 0.65)) {
+            randomDirection = normalizeAngle(randomDirection + 120.0 + Math.random() * 80.0);
         }
 
+        rotateToward(randomDirection, turnRate, deltaTime);
+
+        if (!isObstacleNear(orientation, VACUUM_SIZE * 0.45)) {
+            forward(speed, deltaTime);
+        } else {
+            randomDirection = normalizeAngle(orientation + 140.0 + Math.random() * 60.0);
+            this.lastSpeed = 0;
+        }
+    }
+
+    private void alg5(double deltaTime) {
+        // Spot-clean spiral used by consumer robots for concentrated dirty regions.
+        double speed = Math.max(0.45, moveSpeedFeetPerSec * 0.7);
+        double baseTurnRate = 220.0 / Math.max(1.0, spiralRadius * 2.2);
+
+        if (spotSpiralTurning) {
+            rotateToward(spotSpiralTargetHeading, 210.0, deltaTime);
+            if (isAngleClose(orientation, spotSpiralTargetHeading, 4.0)) {
+                spotSpiralTurning = false;
+            }
+            this.lastSpeed = 0;
+            return;
+        }
+
+        if (isObstacleNear(orientation, VACUUM_SIZE * 0.45)) {
+            spotSpiralTargetHeading = normalizeAngle(orientation + 130.0 + Math.random() * 80.0);
+            spotSpiralTurning = true;
+            spiralRadius = Math.max(0.75, spiralRadius * 0.8);
+            this.lastSpeed = 0;
+            return;
+        }
+
+        rotate(baseTurnRate, deltaTime);
+        forward(speed, deltaTime);
+        spiralRadius = Math.min(10.0, spiralRadius + 0.12 * deltaTime);
+    }
+
+    private void rotateToward(double targetAngle, double turnRateDegPerSec, double deltaTime) {
+        double diff = shortestSignedAngleDiff(targetAngle, orientation);
+        double maxStep = Math.max(0, turnRateDegPerSec) * deltaTime;
+        double applied = Math.max(-maxStep, Math.min(maxStep, diff));
+        orientation = normalizeAngle(orientation + applied);
+    }
+
+    private boolean isObstacleNear(double directionDegrees, double probeDistance) {
+        double radians = Math.toRadians(directionDegrees);
+        double probeX = x + Math.cos(radians) * probeDistance;
+        double probeY = y + Math.sin(radians) * probeDistance;
+        return checkCollisionAt(probeX, probeY);
+    }
+
+    private double distanceToObstacle(double directionDegrees, double maxDistance) {
+        double radians = Math.toRadians(directionDegrees);
+        double step = 0.08;
+        for (double d = step; d <= maxDistance; d += step) {
+            double probeX = x + Math.cos(radians) * d;
+            double probeY = y + Math.sin(radians) * d;
+            if (checkCollisionAt(probeX, probeY)) {
+                return d;
+            }
+        }
+        return maxDistance;
+    }
+
+    private double shortestSignedAngleDiff(double target, double current) {
+        double diff = normalizeAngle(target) - normalizeAngle(current);
+        if (diff > 180.0) {
+            diff -= 360.0;
+        } else if (diff < -180.0) {
+            diff += 360.0;
+        }
+        return diff;
+    }
+
+    private boolean isAngleClose(double a, double b, double toleranceDeg) {
+        return Math.abs(shortestSignedAngleDiff(a, b)) <= toleranceDeg;
+    }
+
+    private double normalizeAngle(double value) {
+        double normalized = value % 360.0;
+        return normalized < 0 ? normalized + 360.0 : normalized;
     }
 
     /**
      * Improved collision detection with continuous collision checking for high-speed movement
      */
-    private void testCollision(double rollbackX, double rollbackY, double lastSpeed, double offsetX,
+    private boolean testCollision(double rollbackX, double rollbackY, double offsetX,
             double offsetY, double screenScale) {
         // Check along the full travel path in world space so zoom/offset never affect collision.
         double distance = Math.hypot(x - rollbackX, y - rollbackY);
@@ -253,9 +427,10 @@ public class Vacuum {
                 // Collision detected, restore to position before this step
                 x = rollbackX + (stepX * (step - 1));
                 y = rollbackY + (stepY * (step - 1));
-                return;
+                return true;
             }
         }
+        return false;
     }
 
     /**
@@ -263,10 +438,10 @@ public class Vacuum {
      */
     private boolean checkCollisionAt(double testX, double testY) {
         Circle hitbox = new Circle();
-        double circleOffset = VACUUM_SIZE / 2;
+        double circleOffset = VACUUM_SIZE * 0.5;
         hitbox.setCenterX(testX + circleOffset);
         hitbox.setCenterY(testY + circleOffset);
-        hitbox.setRadius(circleOffset);
+        hitbox.setRadius(VACUUM_SIZE * COLLISION_RADIUS_RATIO);
 
         for (Rectangle wall : wallColliders) {
             if (hitboxCollides(hitbox, wall)) {
@@ -366,6 +541,15 @@ public class Vacuum {
         this.moveMode = MoveMode.fromCode(modeCode).getCode();
     }
 
+    public void setMoveSpeedFeetPerSec(double speed) {
+        this.moveSpeedFeetPerSec =
+                Math.max(MIN_MOVE_SPEED_FT_PER_SEC, Math.min(MAX_MOVE_SPEED_FT_PER_SEC, speed));
+    }
+
+    public double getMoveSpeedFeetPerSec() {
+        return moveSpeedFeetPerSec;
+    }
+
     public int getMoveMode() {
         return moveMode;
     }
@@ -373,6 +557,19 @@ public class Vacuum {
     public void setPosition(double newX, double newY) {
         this.x = newX;
         this.y = newY;
+    }
+
+    public double getStartX() {
+        return startX;
+    }
+
+    public double getStartY() {
+        return startY;
+    }
+
+    public void setOrientation(double orientation) {
+        double normalized = orientation % 360.0;
+        this.orientation = normalized < 0 ? normalized + 360.0 : normalized;
     }
 
     public void setStartPosition(double newStartX, double newStartY) {

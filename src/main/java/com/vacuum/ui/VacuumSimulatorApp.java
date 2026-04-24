@@ -1,9 +1,10 @@
 package com.vacuum.ui;
 
 import com.vacuum.model.*;
-import com.vacuum.model.Door.Orientation;
+import com.vacuum.util.LayoutPersistence;
 import com.vacuum.util.Vacuum;
 import com.vacuum.util.simulationTimer;
+import javafx.animation.AnimationTimer;
 import javafx.animation.FadeTransition;
 import javafx.animation.Interpolator;
 import javafx.animation.KeyFrame;
@@ -12,35 +13,31 @@ import javafx.animation.ParallelTransition;
 import javafx.animation.Timeline;
 import javafx.animation.TranslateTransition;
 import javafx.application.Application;
-import javafx.event.ActionEvent;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.ScrollEvent;
-import javafx.scene.layout.CornerRadii;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
-import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
-import javafx.stage.Stage;
-import javafx.event.EventHandler;
-import javafx.util.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import org.w3c.dom.css.Rect;
-
-
+import javafx.stage.FileChooser;
 import javafx.stage.Modality;
+import javafx.util.Duration;
 import javafx.stage.Stage;
+import java.io.File;
+import java.io.IOException;
 import java.net.URL;
+import java.nio.file.Path;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Main JavaFX application for the vacuum simulator Req 1.1: Standalone Windows application
@@ -62,10 +59,15 @@ public class VacuumSimulatorApp extends Application {
     private ToggleButton editModeToggle;
     private ToggleButton addRoomToggle;
     private ToggleButton addObstructionToggle;
+    private ToggleButton followCameraToggle;
     private CheckBox blockingObstructionCheckBox;
+    private Button deleteSelectionButton;
+    private Button resizeFurnitureButton;
     private Label editModeIndicatorLabel;
     private Rectangle editModeOutline;
     private boolean darkModeActive = false;
+    private boolean cameraTrackingEnabled = false;
+    private AnimationTimer cameraTrackingTimer;
 
     private Label statusLabel;
     private Label zoomLabel;
@@ -80,6 +82,9 @@ public class VacuumSimulatorApp extends Application {
     private Label floorCoveringValueLabel;
     private Label seedValueLabel;
     private Label validStateValueLabel;
+    private File currentLayoutFile;
+    private final Map<House.FloorCovering, RadioMenuItem> floorCoveringMenuItems =
+            new EnumMap<>(House.FloorCovering.class);
     private long simulationChangeVersion = 0;
     private long pausedSnapshotVersion = -1;
     private boolean hasPausedSnapshot = false;
@@ -190,6 +195,8 @@ public class VacuumSimulatorApp extends Application {
         primaryStage.setScene(scene);
         primaryStage.show();
 
+        startCameraTrackingLoop();
+
         updateInfoPanel();
         updateZoomLabel();
 
@@ -199,6 +206,103 @@ public class VacuumSimulatorApp extends Application {
         } else {
             updateStatus("House invalid: " + validationErrors.get(0));
         }
+    }
+
+    private void startCameraTrackingLoop() {
+        cameraTrackingTimer = new AnimationTimer() {
+            @Override
+            public void handle(long now) {
+                if (!cameraTrackingEnabled || simTimer == null || !simTimer.isActive()) {
+                    return;
+                }
+                centerCameraOnRobot();
+            }
+        };
+        cameraTrackingTimer.start();
+    }
+
+    private void centerCameraOnRobot() {
+        if (scrollPane == null || visualizationPane == null || vacuum == null) {
+            return;
+        }
+
+        double contentWidth = visualizationPane.getBoundsInLocal().getWidth();
+        double contentHeight = visualizationPane.getBoundsInLocal().getHeight();
+        double viewportWidth = scrollPane.getViewportBounds().getWidth();
+        double viewportHeight = scrollPane.getViewportBounds().getHeight();
+
+        if (contentWidth <= viewportWidth || contentHeight <= viewportHeight || viewportWidth <= 0
+                || viewportHeight <= 0) {
+            return;
+        }
+
+        double robotCenterX = visualizationPane.getOffsetX()
+                + (vacuum.getX() + vacuum.getSize() * 0.5) * visualizationPane.getScale();
+        double robotCenterY = visualizationPane.getOffsetY()
+                + (vacuum.getY() + vacuum.getSize() * 0.5) * visualizationPane.getScale();
+
+        double targetLeft = robotCenterX - viewportWidth * 0.5;
+        double targetTop = robotCenterY - viewportHeight * 0.5;
+
+        double maxLeft = contentWidth - viewportWidth;
+        double maxTop = contentHeight - viewportHeight;
+        if (maxLeft <= 0 || maxTop <= 0) {
+            return;
+        }
+
+        double clampedLeft = Math.max(0, Math.min(maxLeft, targetLeft));
+        double clampedTop = Math.max(0, Math.min(maxTop, targetTop));
+
+        scrollPane.setHvalue(clampedLeft / maxLeft);
+        scrollPane.setVvalue(clampedTop / maxTop);
+    }
+
+    private void promptResizeSelectedFurniture() {
+        if (!visualizationPane.hasSelectedObstruction()) {
+            updateStatus("Select an obstruction before resizing furniture");
+            return;
+        }
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.initOwner(primaryStage);
+        dialog.setTitle("Resize Furniture");
+        dialog.setHeaderText("Enter new obstruction size (feet)");
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(8));
+
+        TextField widthField = new TextField(
+                String.format("%.1f", visualizationPane.getSelectedObstructionWidth()));
+        TextField heightField = new TextField(
+                String.format("%.1f", visualizationPane.getSelectedObstructionHeight()));
+
+        grid.add(new Label("Width:"), 0, 0);
+        grid.add(widthField, 1, 0);
+        grid.add(new Label("Height:"), 0, 1);
+        grid.add(heightField, 1, 1);
+
+        dialog.getDialogPane().setContent(grid);
+
+        dialog.showAndWait().ifPresent(result -> {
+            if (result != ButtonType.OK) {
+                return;
+            }
+
+            try {
+                double newWidth = Double.parseDouble(widthField.getText().trim());
+                double newHeight = Double.parseDouble(heightField.getText().trim());
+
+                if (visualizationPane.resizeSelectedObstruction(newWidth, newHeight)) {
+                    updateStatus(String.format("Resized furniture to %.1f × %.1f ft", newWidth,
+                            newHeight));
+                }
+            } catch (NumberFormatException ex) {
+                updateStatus("Invalid furniture size values");
+            }
+        });
     }
 
     /**
@@ -269,6 +373,18 @@ public class VacuumSimulatorApp extends Application {
             updateStatus(visible ? "Cleaning heat map shown" : "Cleaning heat map hidden");
         });
 
+        followCameraToggle = new ToggleButton("Follow Robot");
+        followCameraToggle.getStyleClass().add("strip-button");
+        followCameraToggle.setSelected(false);
+        followCameraToggle.setOnAction(e -> {
+            cameraTrackingEnabled = followCameraToggle.isSelected();
+            if (cameraTrackingEnabled) {
+                centerCameraOnRobot();
+            }
+            updateStatus(
+                    cameraTrackingEnabled ? "Camera follow enabled" : "Camera follow disabled");
+        });
+
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
@@ -293,7 +409,8 @@ public class VacuumSimulatorApp extends Application {
         });
 
         strip.getChildren().addAll(viewLabel, zoomOutButton, zoomInButton, resetZoomButton,
-                editModeToggle, controlsButton, heatMapToggle, spacer, darkToggle);
+                editModeToggle, controlsButton, heatMapToggle, followCameraToggle, spacer,
+                darkToggle);
         return strip;
     }
 
@@ -372,8 +489,25 @@ public class VacuumSimulatorApp extends Application {
             }
         });
 
+        resizeFurnitureButton = new Button("Resize Furniture");
+        resizeFurnitureButton.getStyleClass().add("strip-button");
+        resizeFurnitureButton.setOnAction(e -> promptResizeSelectedFurniture());
+
+        deleteSelectionButton = new Button("Delete Selected");
+        deleteSelectionButton.getStyleClass().add("strip-button");
+        deleteSelectionButton.setOnAction(e -> {
+            if (!visualizationPane.hasSelection()) {
+                updateStatus("Select a room or obstruction to delete");
+                return;
+            }
+            if (visualizationPane.deleteSelectedElement()) {
+                updateStatus("Selected element deleted");
+            }
+        });
+
         editActionsStrip.getChildren().addAll(editActionsLabel, addRoomToggle, addObstructionToggle,
-                blockingObstructionCheckBox, editModeIndicatorLabel);
+                blockingObstructionCheckBox, resizeFurnitureButton, deleteSelectionButton,
+                editModeIndicatorLabel);
         return editActionsStrip;
     }
 
@@ -520,10 +654,10 @@ public class VacuumSimulatorApp extends Application {
         MenuItem saveAsItem = new MenuItem("Save House As...");
         MenuItem exitItem = new MenuItem("Exit");
 
-        newItem.setDisable(true); // TODO: implement
-        openItem.setDisable(true);
-        saveItem.setDisable(true);
-        saveAsItem.setDisable(true);
+        newItem.setOnAction(e -> createNewLayout());
+        openItem.setOnAction(e -> openLayoutFromFile());
+        saveItem.setOnAction(e -> saveLayoutToFile(false));
+        saveAsItem.setOnAction(e -> saveLayoutToFile(true));
         exitItem.setOnAction(e -> stage.close());
 
         fileMenu.getItems().addAll(newItem, openItem, new SeparatorMenuItem(), saveItem, saveAsItem,
@@ -549,6 +683,7 @@ public class VacuumSimulatorApp extends Application {
                 refreshUiAfterModelChange("Floor covering changed to " + covering.getDisplayName(),
                         false, true);
             });
+            floorCoveringMenuItems.put(covering, item);
             floorSubmenu.getItems().add(item);
         }
 
@@ -803,6 +938,167 @@ public class VacuumSimulatorApp extends Application {
         });
     }
 
+    private void createNewLayout() {
+        simTimer.stop();
+        setSimulationEditingEnabled(true);
+
+        house = createDefaultHouse();
+        visualizationPane.setHouse(house);
+
+        vacuum.setStartPosition(20, 11.5);
+        vacuum.setPosition(20, 11.5);
+        vacuum.setOrientation(0);
+        vacuum.setBattery(100);
+
+        parametersPanel.setBatteryDrainRatePercent(100.0 / (100.0 * 60.0));
+        parametersPanel.setStartBattery(100);
+        parametersPanel.setSelectedMoveMode(Vacuum.MoveMode.STRAIGHT.getCode());
+        parametersPanel.setRobotSpeedFeetPerSec(1.0);
+        parametersPanel.setSpeedMultiplier(1.0);
+
+        currentLayoutFile = null;
+        syncFloorMenuSelection();
+        refreshUiAfterModelChange("Created a new house layout", true, true);
+    }
+
+    private void openLayoutFromFile() {
+        FileChooser chooser = createLayoutFileChooser("Open Layout");
+        File selected = chooser.showOpenDialog(primaryStage);
+        if (selected == null) {
+            return;
+        }
+
+        try {
+            LayoutPersistence.LayoutSnapshot snapshot = LayoutPersistence.load(selected.toPath());
+            applyLoadedSnapshot(snapshot);
+            currentLayoutFile = selected;
+            refreshUiAfterModelChange("Loaded layout from " + selected.getName(), true, true);
+        } catch (IOException | IllegalArgumentException ex) {
+            showPersistenceError("Open Layout Failed", ex.getMessage());
+        }
+    }
+
+    private void saveLayoutToFile(boolean saveAs) {
+        File target = currentLayoutFile;
+        if (target == null || saveAs) {
+            FileChooser chooser = createLayoutFileChooser("Save Layout");
+            File selected = chooser.showSaveDialog(primaryStage);
+            if (selected == null) {
+                return;
+            }
+            target = ensureJsonExtension(selected);
+        }
+
+        try {
+            LayoutPersistence.LayoutSnapshot snapshot = LayoutPersistence.capture(house, vacuum,
+                    parametersPanel.getStartBattery(), parametersPanel.getSelectedMoveMode(),
+                    parametersPanel.getBatteryDrainRatePercent(),
+                    parametersPanel.getRobotSpeedFeetPerSec(),
+                    parametersPanel.getSpeedMultiplier());
+            LayoutPersistence.save(target.toPath(), snapshot);
+            currentLayoutFile = target;
+            updateStatus("Saved layout to " + target.getName());
+        } catch (IOException | IllegalArgumentException ex) {
+            showPersistenceError("Save Layout Failed", ex.getMessage());
+        }
+    }
+
+    private void applyLoadedSnapshot(LayoutPersistence.LayoutSnapshot snapshot) {
+        simTimer.stop();
+        setSimulationEditingEnabled(true);
+        clearPausedSnapshot();
+
+        house = LayoutPersistence.buildHouse(snapshot);
+        visualizationPane.setHouse(house);
+
+        if (snapshot.robot != null) {
+            double startX = snapshot.robot.startX != null ? snapshot.robot.startX : vacuum.getX();
+            double startY = snapshot.robot.startY != null ? snapshot.robot.startY : vacuum.getY();
+            double currentX = snapshot.robot.currentX != null ? snapshot.robot.currentX : startX;
+            double currentY = snapshot.robot.currentY != null ? snapshot.robot.currentY : startY;
+
+            vacuum.setStartPosition(startX, startY);
+            vacuum.setPosition(currentX, currentY);
+
+            if (snapshot.robot.orientation != null) {
+                vacuum.setOrientation(snapshot.robot.orientation);
+            }
+            if (snapshot.robot.battery != null) {
+                vacuum.setBattery(snapshot.robot.battery);
+            }
+
+            if (snapshot.robot.batteryDrainRatePercent != null) {
+                parametersPanel.setBatteryDrainRatePercent(snapshot.robot.batteryDrainRatePercent);
+            }
+
+            if (snapshot.robot.startBatteryPercent != null) {
+                parametersPanel.setStartBattery(snapshot.robot.startBatteryPercent);
+            }
+
+            if (snapshot.robot.moveMode != null) {
+                parametersPanel.setSelectedMoveMode(snapshot.robot.moveMode);
+            }
+
+            if (snapshot.robot.moveSpeedFeetPerSec != null) {
+                parametersPanel.setRobotSpeedFeetPerSec(snapshot.robot.moveSpeedFeetPerSec);
+            }
+        }
+
+        if (snapshot.simulation != null && snapshot.simulation.speedMultiplier != null) {
+            parametersPanel.setSpeedMultiplier(snapshot.simulation.speedMultiplier);
+        }
+
+        syncFloorMenuSelection();
+    }
+
+    private void syncFloorMenuSelection() {
+        RadioMenuItem menuItem = floorCoveringMenuItems.get(house.getFloorCovering());
+        if (menuItem != null) {
+            menuItem.setSelected(true);
+        }
+    }
+
+    private FileChooser createLayoutFileChooser(String title) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle(title);
+        chooser.getExtensionFilters()
+                .add(new FileChooser.ExtensionFilter("Vacuum Layout (*.json)", "*.json"));
+
+        File initial = currentLayoutFile;
+        if (initial == null) {
+            initial = new File(System.getProperty("user.dir"));
+        }
+        if (initial.isDirectory()) {
+            chooser.setInitialDirectory(initial);
+        } else {
+            File parent = initial.getParentFile();
+            if (parent != null && parent.exists()) {
+                chooser.setInitialDirectory(parent);
+            }
+            chooser.setInitialFileName(initial.getName());
+        }
+        return chooser;
+    }
+
+    private File ensureJsonExtension(File file) {
+        String name = file.getName().toLowerCase();
+        if (name.endsWith(".json")) {
+            return file;
+        }
+        Path path = file.toPath();
+        Path withExtension = path.resolveSibling(file.getName() + ".json");
+        return withExtension.toFile();
+    }
+
+    private void showPersistenceError(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.initOwner(primaryStage);
+        alert.setTitle(title);
+        alert.setHeaderText(title);
+        alert.setContentText(message == null || message.isBlank() ? "Operation failed" : message);
+        alert.showAndWait();
+    }
+
     /**
      * Create default house for testing (Req 1.2) 2000 ft² with 4 rooms
      */
@@ -862,8 +1158,9 @@ public class VacuumSimulatorApp extends Application {
     private void refreshUiAfterModelChange(String statusMessage, boolean clearSelection,
             boolean rerender) {
         markSimulationChanged();
+        visualizationPane.resetCleaningMap();
         if (clearSelection) {
-            visualizationPane.deselectRoom();
+            visualizationPane.deselectAll();
         }
         // Recreate vacuum wall colliders for the new house layout
         vacuum.createWallColliders(house.getRooms());

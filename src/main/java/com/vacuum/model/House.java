@@ -42,8 +42,8 @@ public class House {
     public static final double MIN_TOTAL_AREA = 200.0; // square feet
     public static final double MAX_TOTAL_AREA = 8000.0; // square feet
     public static final int DEFAULT_GENERATED_ROOM_COUNT = 7;
-    public static final double DEFAULT_GENERATED_MIN_AREA = 800.0;
-    public static final double DEFAULT_GENERATED_MAX_AREA = 2100.0;
+    public static final double DEFAULT_GENERATED_MIN_AREA = 320.0;
+    public static final double DEFAULT_GENERATED_MAX_AREA = 900.0;
 
     public enum FloorCovering {
         HARDWOOD("vac_hardwood.png", "Hardwood", 0.75), TILE("vac_tile.png", "Tile",

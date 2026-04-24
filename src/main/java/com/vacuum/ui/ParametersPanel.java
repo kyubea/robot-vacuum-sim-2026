@@ -27,8 +27,9 @@ public class ParametersPanel extends VBox {
     private Label orientationValueLabel;
 
     // Adjustable parameters
-    private Spinner<Integer> batteryDrainSpinner;
+    private Spinner<Double> batteryDrainSpinner;
     private Spinner<Integer> batteryStartSpinner;
+    private Spinner<Double> robotSpeedSpinner;
     private ComboBox<Vacuum.MoveMode> movementAlgorithmCombo;
 
     // Speed multiplier buttons
@@ -168,14 +169,16 @@ public class ParametersPanel extends VBox {
         grid.setVgap(10);
 
         // Battery Drain Rate (percent per second)
-        batteryDrainSpinner = new Spinner<>(0, 100, 5, 1);
+        batteryDrainSpinner = new Spinner<>(0.001, 0.200, 100.0 / (100.0 * 60.0), 0.001);
         batteryDrainSpinner.setEditable(true);
         batteryDrainSpinner.valueProperty().addListener((obs, oldVal, newVal) -> {
-            vacuum.setBatteryDrainRate(newVal);
+            if (newVal != null) {
+                vacuum.setBatteryDrainRate(newVal);
+            }
             notifyParametersChanged();
         });
         addParameterRowWithSpinner(grid, 0, "Battery Drain (%/s)", batteryDrainSpinner,
-                "Adjust how quickly battery drains during simulation");
+                "Roomba-like runtime is around 0.01-0.03 %/s depending on mode and load");
 
         // Battery Start Value
         batteryStartSpinner = new Spinner<>(0, 100, 100, 5);
@@ -198,6 +201,18 @@ public class ParametersPanel extends VBox {
         });
         addParameterRowWithComboBox(grid, 2, "Movement Algorithm", movementAlgorithmCombo,
                 "Choose how the vacuum moves during simulation");
+
+        // Robot speed in ft/s
+        robotSpeedSpinner = new Spinner<>(0.25, 3.00, 1.00, 0.05);
+        robotSpeedSpinner.setEditable(true);
+        robotSpeedSpinner.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                vacuum.setMoveSpeedFeetPerSec(newVal);
+                notifyParametersChanged();
+            }
+        });
+        addParameterRowWithSpinner(grid, 3, "Robot Speed (ft/s)", robotSpeedSpinner,
+                "Adjust physical movement speed used by cleaning algorithms");
 
         Label noteLabel = new Label("Click on the canvas to move the vacuum to a location.");
         noteLabel.setWrapText(true);
@@ -353,15 +368,71 @@ public class ParametersPanel extends VBox {
         return batteryStartSpinner.getValue();
     }
 
+    public double getBatteryDrainRatePercent() {
+        return batteryDrainSpinner.getValue();
+    }
+
+    public double getSpeedMultiplier() {
+        return simTimer.getTimeMultiplier();
+    }
+
     public int getSelectedMoveMode() {
         Vacuum.MoveMode selected = movementAlgorithmCombo.getValue();
         return selected != null ? selected.getCode() : Vacuum.MoveMode.STRAIGHT.getCode();
+    }
+
+    public double getRobotSpeedFeetPerSec() {
+        return robotSpeedSpinner.getValue();
+    }
+
+    public void setBatteryDrainRatePercent(double percent) {
+        double clamped = Math.max(0.001, Math.min(0.200, percent));
+        batteryDrainSpinner.getValueFactory().setValue(clamped);
+        vacuum.setBatteryDrainRate(clamped);
+        notifyParametersChanged();
+    }
+
+    public void setStartBattery(int startBattery) {
+        int clamped = Math.max(0, Math.min(100, startBattery));
+        batteryStartSpinner.getValueFactory().setValue(clamped);
+        notifyParametersChanged();
+    }
+
+    public void setSelectedMoveMode(int modeCode) {
+        Vacuum.MoveMode mode = Vacuum.MoveMode.fromCode(modeCode);
+        movementAlgorithmCombo.setValue(mode);
+        vacuum.setMoveMode(mode.getCode());
+        notifyParametersChanged();
+    }
+
+    public void setRobotSpeedFeetPerSec(double speedFeetPerSec) {
+        double clamped = Math.max(0.25, Math.min(3.0, speedFeetPerSec));
+        robotSpeedSpinner.getValueFactory().setValue(clamped);
+        vacuum.setMoveSpeedFeetPerSec(clamped);
+        notifyParametersChanged();
+    }
+
+    public void setSpeedMultiplier(double multiplier) {
+        double effective = Math.max(0.1, multiplier);
+        simTimer.setTimeMultiplier(effective);
+
+        speed1xButton.setSelected(Math.abs(effective - 1.0) < 0.01);
+        speed2xButton.setSelected(Math.abs(effective - 2.0) < 0.01);
+        speed10xButton.setSelected(Math.abs(effective - 10.0) < 0.01);
+        if (!speed1xButton.isSelected() && !speed2xButton.isSelected()
+                && !speed10xButton.isSelected()) {
+            speed1xButton.setSelected(true);
+        }
+
+        updateSpeedMultiplierLabel();
+        notifyParametersChanged();
     }
 
     public void setParametersEditable(boolean editable) {
         batteryDrainSpinner.setDisable(!editable);
         batteryStartSpinner.setDisable(!editable);
         movementAlgorithmCombo.setDisable(!editable);
+        robotSpeedSpinner.setDisable(!editable);
         speed1xButton.setDisable(!editable);
         speed2xButton.setDisable(!editable);
         speed10xButton.setDisable(!editable);
