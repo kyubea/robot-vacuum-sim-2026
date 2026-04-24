@@ -260,6 +260,15 @@ public class VacuumSimulatorApp extends Application {
         controlsButton.getStyleClass().add("strip-button");
         controlsButton.setOnAction(e -> toggleControlsWindow());
 
+        ToggleButton heatMapToggle = new ToggleButton("Heat Map");
+        heatMapToggle.getStyleClass().add("strip-button");
+        heatMapToggle.setSelected(true);
+        heatMapToggle.setOnAction(e -> {
+            boolean visible = heatMapToggle.isSelected();
+            visualizationPane.setCleaningHeatMapVisible(visible);
+            updateStatus(visible ? "Cleaning heat map shown" : "Cleaning heat map hidden");
+        });
+
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
@@ -284,7 +293,7 @@ public class VacuumSimulatorApp extends Application {
         });
 
         strip.getChildren().addAll(viewLabel, zoomOutButton, zoomInButton, resetZoomButton,
-                editModeToggle, controlsButton, spacer, darkToggle);
+                editModeToggle, controlsButton, heatMapToggle, spacer, darkToggle);
         return strip;
     }
 

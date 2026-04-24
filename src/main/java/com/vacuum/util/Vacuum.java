@@ -64,7 +64,7 @@ public class Vacuum {
     private List<Rectangle> wallColliders;
 
     private static final double BATTERY_DRAIN_RATE_DEFAULT = 5; // percentage per second
-    private static final double VACUUM_SIZE = 2;
+    private static final double VACUUM_SIZE = 1;
 
     // Zig-zag variables
     private boolean movingRight = true;
@@ -124,6 +124,7 @@ public class Vacuum {
         this.lastSpeed = speed; // Track speed
         this.x += dx;
         this.y += dy;
+        alignOrientationWithVector(dx, dy);
     }
 
     public void rotate(double rotationSpeed, double deltaTime) {
@@ -174,15 +175,20 @@ public class Vacuum {
         double rollbackY = this.y;
 
         if (movingRight) {
-            this.x += movementSpeed * deltaTime;
+            double dx = movementSpeed * deltaTime;
+            this.x += dx;
+            alignOrientationWithVector(dx, 0);
         } else {
-            this.x -= movementSpeed * deltaTime;
+            double dx = -movementSpeed * deltaTime;
+            this.x += dx;
+            alignOrientationWithVector(dx, 0);
         }
         this.lastSpeed = movementSpeed;
 
         if (checkCollisionAt(this.x, this.y)) {
             this.x = rollbackX;
             this.y = rollbackY + stepSize;
+            alignOrientationWithVector(0, stepSize);
             movingRight = !movingRight;
             this.lastSpeed = stepSize / Math.max(deltaTime, 1e-9);
         }
@@ -198,6 +204,7 @@ public class Vacuum {
 
         this.x += dx;
         this.y += dy;
+        alignOrientationWithVector(dx, dy);
         this.lastSpeed = Math.hypot(dx, dy) / Math.max(deltaTime, 1e-9);
 
     }
@@ -212,12 +219,14 @@ public class Vacuum {
 
         this.x += dx;
         this.y += dy;
+        alignOrientationWithVector(dx, dy);
         this.lastSpeed = movementSpeed;
 
         if (checkCollisionAt(this.x, this.y)) {
             this.x = rollbackX;
             this.y = rollbackY;
             randomDirection = Math.random() * 360;
+            this.orientation = randomDirection;
             this.lastSpeed = 0;
         }
 
@@ -265,6 +274,14 @@ public class Vacuum {
             }
         }
         return false;
+    }
+
+    private void alignOrientationWithVector(double dx, double dy) {
+        if (Math.hypot(dx, dy) < 1e-9) {
+            return;
+        }
+        double angle = Math.toDegrees(Math.atan2(dy, dx));
+        this.orientation = angle < 0 ? angle + 360 : angle;
     }
 
 
