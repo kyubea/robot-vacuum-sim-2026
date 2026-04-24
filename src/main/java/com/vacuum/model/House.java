@@ -46,11 +46,11 @@ public class House {
     public static final double DEFAULT_GENERATED_MAX_AREA = 2100.0;
 
     public enum FloorCovering {
-        HARDWOOD("vac_hardwood.png", "Hardwood", 0.90), TILE("vac_tile.png", "Tile",
-                0.90), LAMINATE("vac_laminate.png", "Laminate", 0.90), BERBERPILE(
+        HARDWOOD("vac_hardwood.png", "Hardwood", 0.75), TILE("vac_tile.png", "Tile",
+                0.60), LAMINATE("vac_laminate.png", "Laminate", 0.75), BERBERPILE(
                         "vac_berberpile.png", "Berber Pile",
-                        0.75), CUTPILE("vac_cutpile.png", "Cut Pile", 0.70), CALIFORNIASHAG(
-                                "vac_californiashag.png", "California Shag", 0.65);
+                        0.2857), CUTPILE("vac_cutpile.png", "Cut Pile", 0.2857), CALIFORNIASHAG(
+                                "vac_californiashag.png", "California Shag", 0.2857);
 
         private final Image userFloor;
         private final String displayName;

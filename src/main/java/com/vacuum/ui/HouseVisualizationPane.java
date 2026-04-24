@@ -20,10 +20,12 @@ import javafx.scene.shape.Circle;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import javafx.scene.shape.StrokeLineCap;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -76,6 +78,16 @@ public class HouseVisualizationPane extends Pane {
     public Vacuum vacuum;
     private String lastResizeWarning;
     private boolean resizeAppliedDuringDrag;
+
+    private final Map<Long, Integer> tilePassCounts = new HashMap<>();
+    private final Map<Long, Integer> tilePassRequirements = new HashMap<>();
+    private final Set<Long> cleanableTiles = new HashSet<>();
+    private boolean cleaningMapInitialized = false;
+    private boolean cleaningHeatMapVisible = true;
+
+    private static final double TILE_SIZE = 1.0;
+    private static final double FRONT_HITBOX_WIDTH_RATIO = 0.92;
+    private static final double FRONT_HITBOX_DEPTH_RATIO = 0.12;
 
     private Consumer<String> statusMessageHandler;
     private Runnable houseChangedHandler;
@@ -244,6 +256,7 @@ public class HouseVisualizationPane extends Pane {
 
     public void setHouse(House house) {
         this.house = house;
+        resetCleaningMap();
         render();
     }
 
@@ -294,6 +307,7 @@ public class HouseVisualizationPane extends Pane {
 
         selectedRoomRect = null;
         renderRooms();
+        renderCleaningMap();
         renderObstructions();
         renderVacuum();
         renderDoors();
@@ -317,6 +331,249 @@ public class HouseVisualizationPane extends Pane {
         rightHandle.toFront();
         topHandle.toFront();
         bottomHandle.toFront();
+    }
+
+    public void resetCleaningMap() {
+        tilePassCounts.clear();
+        tilePassRequirements.clear();
+        cleanableTiles.clear();
+        cleaningMapInitialized = false;
+    }
+
+    public void setCleaningHeatMapVisible(boolean visible) {
+        this.cleaningHeatMapVisible = visible;
+        render();
+    }
+
+    public boolean isCleaningHeatMapVisible() {
+        return cleaningHeatMapVisible;
+    }
+
+    public void updateCleaningFromVacuumFrontHitbox() {
+        if (house == null || vacuum == null) {
+            return;
+        }
+
+        initializeCleaningMapIfNeeded();
+        if (cleanableTiles.isEmpty()) {
+            return;
+        }
+
+        double[][] frontHitbox = computeFrontHitboxCorners();
+        double minX = Double.POSITIVE_INFINITY;
+        double maxX = Double.NEGATIVE_INFINITY;
+        double minY = Double.POSITIVE_INFINITY;
+        double maxY = Double.NEGATIVE_INFINITY;
+        for (double[] corner : frontHitbox) {
+            minX = Math.min(minX, corner[0]);
+            maxX = Math.max(maxX, corner[0]);
+            minY = Math.min(minY, corner[1]);
+            maxY = Math.max(maxY, corner[1]);
+        }
+
+        int startGx = (int) Math.floor(minX);
+        int endGx = (int) Math.floor(maxX);
+        int startGy = (int) Math.floor(minY);
+        int endGy = (int) Math.floor(maxY);
+
+        for (int gx = startGx; gx <= endGx; gx++) {
+            for (int gy = startGy; gy <= endGy; gy++) {
+                double centerX = gx + 0.5;
+                double centerY = gy + 0.5;
+                if (!pointInConvexQuad(centerX, centerY, frontHitbox)) {
+                    continue;
+                }
+
+                long tileKey = encodeTileKey(gx, gy);
+                if (!cleanableTiles.contains(tileKey)) {
+                    continue;
+                }
+
+                int required = tilePassRequirements.getOrDefault(tileKey, 1);
+                int currentPasses = tilePassCounts.getOrDefault(tileKey, 0);
+                if (currentPasses < required) {
+                    tilePassCounts.put(tileKey, currentPasses + 1);
+                }
+            }
+        }
+    }
+
+    private void initializeCleaningMapIfNeeded() {
+        if (cleaningMapInitialized) {
+            return;
+        }
+        cleaningMapInitialized = true;
+
+        if (house == null || house.getRooms().isEmpty()) {
+            return;
+        }
+
+        int requiredPasses = toRequiredPasses(house.getFloorCovering().getDefaultEfficiency());
+
+        double minX = Double.POSITIVE_INFINITY;
+        double maxX = Double.NEGATIVE_INFINITY;
+        double minY = Double.POSITIVE_INFINITY;
+        double maxY = Double.NEGATIVE_INFINITY;
+        for (Room room : house.getRooms()) {
+            minX = Math.min(minX, room.getX());
+            maxX = Math.max(maxX, room.getMaxX());
+            minY = Math.min(minY, room.getY());
+            maxY = Math.max(maxY, room.getMaxY());
+        }
+
+        int startGx = (int) Math.floor(minX);
+        int endGx = (int) Math.ceil(maxX) - 1;
+        int startGy = (int) Math.floor(minY);
+        int endGy = (int) Math.ceil(maxY) - 1;
+
+        List<Obstruction> obstructions = house.getObstructions();
+        for (int gx = startGx; gx <= endGx; gx++) {
+            for (int gy = startGy; gy <= endGy; gy++) {
+                double centerX = gx + 0.5;
+                double centerY = gy + 0.5;
+                if (house.getRoomAt(centerX, centerY) == null) {
+                    continue;
+                }
+
+                boolean blocked = false;
+                for (Obstruction obstruction : obstructions) {
+                    if (obstruction.blocksCleanableArea()
+                            && obstruction.contains(centerX, centerY)) {
+                        blocked = true;
+                        break;
+                    }
+                }
+                if (blocked) {
+                    continue;
+                }
+
+                long tileKey = encodeTileKey(gx, gy);
+                cleanableTiles.add(tileKey);
+                tilePassRequirements.put(tileKey, requiredPasses);
+                tilePassCounts.put(tileKey, 0);
+            }
+        }
+    }
+
+    private void renderCleaningMap() {
+        if (!cleaningHeatMapVisible) {
+            return;
+        }
+
+        initializeCleaningMapIfNeeded();
+        if (cleanableTiles.isEmpty()) {
+            return;
+        }
+
+        for (long tileKey : cleanableTiles) {
+            int required = tilePassRequirements.getOrDefault(tileKey, 1);
+            int passes = tilePassCounts.getOrDefault(tileKey, 0);
+            double progress = Math.min(1.0, passes / (double) required);
+
+            int gx = decodeTileX(tileKey);
+            int gy = decodeTileY(tileKey);
+
+            Rectangle tile = new Rectangle();
+            tile.setX(offsetX + gx * scale);
+            tile.setY(offsetY + gy * scale);
+            tile.setWidth(TILE_SIZE * scale);
+            tile.setHeight(TILE_SIZE * scale);
+
+            tile.setFill(getCleaningHeatMapColor(progress));
+            tile.setMouseTransparent(true);
+            this.getChildren().add(tile);
+        }
+    }
+
+    private Color getCleaningHeatMapColor(double progress) {
+        double t = Math.max(0.0, Math.min(1.0, progress));
+
+        Color dirtyBlue = Color.web("#2f1eff");
+        Color midTone = Color.web("#7a5a7e");
+        Color cleanWarm = Color.web("#e6a03a");
+
+        Color base;
+        if (t <= 0.5) {
+            base = dirtyBlue.interpolate(midTone, t / 0.5);
+        } else {
+            base = midTone.interpolate(cleanWarm, (t - 0.5) / 0.5);
+        }
+
+        return new Color(base.getRed(), base.getGreen(), base.getBlue(), 0.48);
+    }
+
+    private int toRequiredPasses(double efficiency) {
+        double clamped = Math.max(0.01, Math.min(1.0, efficiency));
+        return Math.max(1, (int) Math.ceil(1.0 / clamped));
+    }
+
+    private double[][] computeFrontHitboxCorners() {
+        double size = vacuum.getSize();
+        double centerX = vacuum.getX() + size / 2.0;
+        double centerY = vacuum.getY() + size / 2.0;
+
+        double radians = Math.toRadians(vacuum.getOrientation());
+        double forwardX = Math.cos(radians);
+        double forwardY = Math.sin(radians);
+        double rightX = -forwardY;
+        double rightY = forwardX;
+
+        double halfWidth = (size * FRONT_HITBOX_WIDTH_RATIO) / 2.0;
+        double halfDepth = (size * FRONT_HITBOX_DEPTH_RATIO) / 2.0;
+
+        // Keep the strip under the front edge, not projected ahead of the robot body.
+        double frontCenterX = centerX + forwardX * (size / 2.0 - halfDepth);
+        double frontCenterY = centerY + forwardY * (size / 2.0 - halfDepth);
+
+        double[][] corners = new double[4][2];
+        corners[0][0] = frontCenterX - rightX * halfWidth - forwardX * halfDepth;
+        corners[0][1] = frontCenterY - rightY * halfWidth - forwardY * halfDepth;
+
+        corners[1][0] = frontCenterX + rightX * halfWidth - forwardX * halfDepth;
+        corners[1][1] = frontCenterY + rightY * halfWidth - forwardY * halfDepth;
+
+        corners[2][0] = frontCenterX + rightX * halfWidth + forwardX * halfDepth;
+        corners[2][1] = frontCenterY + rightY * halfWidth + forwardY * halfDepth;
+
+        corners[3][0] = frontCenterX - rightX * halfWidth + forwardX * halfDepth;
+        corners[3][1] = frontCenterY - rightY * halfWidth + forwardY * halfDepth;
+
+        return corners;
+    }
+
+    private boolean pointInConvexQuad(double px, double py, double[][] corners) {
+        boolean hasNegative = false;
+        boolean hasPositive = false;
+
+        for (int i = 0; i < corners.length; i++) {
+            double[] a = corners[i];
+            double[] b = corners[(i + 1) % corners.length];
+            double cross = (b[0] - a[0]) * (py - a[1]) - (b[1] - a[1]) * (px - a[0]);
+
+            if (cross < 0) {
+                hasNegative = true;
+            } else if (cross > 0) {
+                hasPositive = true;
+            }
+
+            if (hasNegative && hasPositive) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private long encodeTileKey(int gx, int gy) {
+        return (((long) gx) << 32) ^ (gy & 0xffffffffL);
+    }
+
+    private int decodeTileX(long key) {
+        return (int) (key >> 32);
+    }
+
+    private int decodeTileY(long key) {
+        return (int) key;
     }
 
     private void renderFloorBoundary(double planWidth, double planHeight) {
