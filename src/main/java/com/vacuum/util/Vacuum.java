@@ -68,7 +68,7 @@ public class Vacuum {
 
     // Zig-zag variables
     private boolean movingRight = true;
-    private double stepSize = 5;
+    private double stepSize = 1; // R.C. change for zig-zag algo
     private double movementSpeed = 20;
 
     // Spiral variables
@@ -192,7 +192,6 @@ public class Vacuum {
             movingRight = !movingRight;
             this.lastSpeed = stepSize / Math.max(deltaTime, 1e-9);
         }
-
     }
 
     private void alg3(double deltaTime) {
