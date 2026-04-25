@@ -25,6 +25,7 @@ public class ParametersPanel extends VBox {
     private Label posXValueLabel;
     private Label posYValueLabel;
     private Label orientationValueLabel;
+    private Label cleanedAreaLabel;
 
     // Adjustable parameters
     private Spinner<Double> batteryDrainSpinner;
@@ -108,6 +109,9 @@ public class ParametersPanel extends VBox {
         // Orientation - HOOKED UP
         orientationValueLabel = createValueLabel("0°");
         addParameterRow(grid, 4, "Orientation", orientationValueLabel, null);
+
+        cleanedAreaLabel = createValueLabel("0°");
+        addParameterRow(grid, 5, "Area cleaned ", cleanedAreaLabel, null);
 
         card.getChildren().addAll(cardTitle, grid);
         return card;
@@ -362,6 +366,11 @@ public class ParametersPanel extends VBox {
         // Speed - NOW HOOKED UP to real speed
         double speed = vacuum.getSpeed();
         speedValueLabel.setText(String.format("%.2f ft/s", speed));
+
+        double areaCleaned = visualizationPane.getCleanedArea();
+        double coveragePercent =
+                (areaCleaned / visualizationPane.getHouse().getCleanableArea()) * 100;
+        cleanedAreaLabel.setText(String.format("%.1f ft² (%.1f%%)", areaCleaned, coveragePercent));
     }
 
     public int getStartBattery() {

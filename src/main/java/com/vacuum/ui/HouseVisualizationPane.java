@@ -404,6 +404,7 @@ public class HouseVisualizationPane extends Pane {
         double dy = cy - nearestY;
         return (dx * dx + dy * dy) <= (radius * radius);
     }
+
     private void initializeCleaningMapIfNeeded() {
         if (cleaningMapInitialized) {
             return;
@@ -463,6 +464,19 @@ public class HouseVisualizationPane extends Pane {
         }
     }
 
+    public double getCleanedArea() {
+        double fullyCleanedArea = 0.0;
+        for (long tileKey : cleanableTiles) {
+            int passes = tilePassCounts.getOrDefault(tileKey, 0);
+            double progress = Math.min(1.0, passes * cleaningEfficiencyPerPass);
+            if (progress >= 1.0) {
+                fullyCleanedArea += TILE_SIZE * TILE_SIZE; // 1.0 ft²
+            }
+        }
+        return fullyCleanedArea;
+
+    }
+
     private void renderCleaningMap() {
         if (!cleaningHeatMapVisible) {
             return;
@@ -515,6 +529,7 @@ public class HouseVisualizationPane extends Pane {
         // Each pass contributes floor efficiency worth of cleaning.
         return Math.max(1, (int) Math.ceil(1.0 / clamped));
     }
+
     private long encodeTileKey(int gx, int gy) {
         return (((long) gx) << 32) ^ (gy & 0xffffffffL);
     }
@@ -1447,6 +1462,10 @@ public class HouseVisualizationPane extends Pane {
 
     public double getScale() {
         return scale;
+    }
+
+    public House getHouse() {
+        return house;
     }
 
     private double snapToGrid(double value) {
