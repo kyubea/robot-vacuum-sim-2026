@@ -384,7 +384,6 @@ public class VacuumSimulatorApp extends Application {
             updateStatus(
                     cameraTrackingEnabled ? "Camera follow enabled" : "Camera follow disabled");
         });
-
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
