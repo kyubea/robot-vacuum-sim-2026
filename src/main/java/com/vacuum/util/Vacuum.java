@@ -65,8 +65,15 @@ public class Vacuum {
     private boolean collided = false;
     private double movementSpeed = 20;
 
+    // Previous frame's vacuum center, used for swept-capsule cleaning hitbox
+    private double prevCenterX;
+    private double prevCenterY;
+
     private static final double BATTERY_DRAIN_RATE_DEFAULT = 5; // percentage per second
     private static final double VACUUM_SIZE = 1;
+
+    // Wall-following variables
+    private static final double WALLFOLLOW_ROTATE_SPEED = 180;
 
     // Zig-zag variables
     private boolean movingRight = true;
@@ -113,6 +120,8 @@ public class Vacuum {
         this.orientation = 0;
         this.battery = batteryStart;
         setMoveMode(moveMode);
+        this.prevCenterX = startX + VACUUM_SIZE / 2.0;
+        this.prevCenterY = startY + VACUUM_SIZE / 2.0;
         zigPhase = 0;
         turnDirection = 1;
         collided = false;
@@ -148,7 +157,12 @@ public class Vacuum {
         this.orientation = this.orientation % 360;
     }
 
-    public void update(double deltaTime, double offsetX, double offsetY, double screenScale) {
+    public void update(double deltaTime) {
+        // Snapshot center before this frame's movement for swept-capsule hitbox
+        double halfSize = VACUUM_SIZE / 2.0;
+        this.prevCenterX = this.x + halfSize;
+        this.prevCenterY = this.y + halfSize;
+
         // Drain battery and clamp to [0, 100]
         this.battery -= batteryDrainRate * deltaTime;
         this.battery = Math.max(0, Math.min(100, this.battery));
@@ -180,8 +194,30 @@ public class Vacuum {
     }
 
     private void alg1(double deltaTime) {
-        this.forward(10, deltaTime);
-        // this.rotate(30, deltaTime);
+        if (collided) {
+            rotateAmount = 90;
+        }
+        if (rotateAmount <= 0) {
+            double radians = Math.toRadians(orientation);
+            double dx = movementSpeed * Math.cos(radians) * deltaTime;
+            double dy = movementSpeed * Math.sin(radians) * deltaTime;
+
+            this.x += dx;
+            this.y += dy;
+            this.lastSpeed = movementSpeed;
+        } else {
+            double step = WALLFOLLOW_ROTATE_SPEED * deltaTime;
+            if (step >= rotateAmount) {
+                orientation += rotateAmount;
+                orientation = orientation % 360;
+                rotateAmount = 0;
+            } else {
+                rotate(WALLFOLLOW_ROTATE_SPEED, deltaTime);
+                rotateAmount -= step;
+            }
+
+        }
+
     }
 
     private void alg2(double deltaTime) {
@@ -360,6 +396,14 @@ public class Vacuum {
             return false;
         }
 
+    }
+
+    public double getPrevCenterX() {
+        return prevCenterX;
+    }
+
+    public double getPrevCenterY() {
+        return prevCenterY;
     }
 
     public double getX() {
