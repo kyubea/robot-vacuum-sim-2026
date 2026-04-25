@@ -69,6 +69,8 @@ public class HouseVisualizationPane extends Pane {
 
     private Rectangle selectedRoomRect;
     private Room selectedRoomModel;
+    private Rectangle selectedObstructionRect;
+    private Obstruction selectedObstructionModel;
     private Circle leftHandle, rightHandle, topHandle, bottomHandle;
 
     private String resizeEdge;
@@ -84,10 +86,10 @@ public class HouseVisualizationPane extends Pane {
     private final Set<Long> cleanableTiles = new HashSet<>();
     private boolean cleaningMapInitialized = false;
     private boolean cleaningHeatMapVisible = true;
+    private double cleaningEfficiencyPerPass = 1.0;
 
     private static final double TILE_SIZE = 1.0;
-    private static final double FRONT_HITBOX_WIDTH_RATIO = 0.92;
-    private static final double FRONT_HITBOX_DEPTH_RATIO = 0.12;
+    private static final double CLEANING_RADIUS_RATIO = 0.36;
 
     private Consumer<String> statusMessageHandler;
     private Runnable houseChangedHandler;
@@ -140,7 +142,7 @@ public class HouseVisualizationPane extends Pane {
         setOnMouseClicked(e -> {
             if (e.getTarget() == this && !(addRoomMode || addObstructionMode)) {
                 if (editMode) {
-                    deselectRoom();
+                    deselectAll();
                     hoverTooltip.setVisible(false);
                 } else if (robotPlacementHandler != null) {
                     Point2D model = sceneToModel(e.getSceneX(), e.getSceneY());
@@ -306,6 +308,7 @@ public class HouseVisualizationPane extends Pane {
         renderGrid(planWidth, planHeight, minRoomX, minRoomY, maxRoomX, maxRoomY);
 
         selectedRoomRect = null;
+        selectedObstructionRect = null;
         renderRooms();
         renderCleaningMap();
         renderObstructions();
@@ -324,6 +327,10 @@ public class HouseVisualizationPane extends Pane {
             deselectRoom();
         }
 
+        if (!editMode && selectedObstructionModel != null) {
+            deselectObstruction();
+        }
+
         updateTooltipStyle();
         ghostRect.toFront();
         hoverTooltip.toFront();
@@ -338,6 +345,7 @@ public class HouseVisualizationPane extends Pane {
         tilePassRequirements.clear();
         cleanableTiles.clear();
         cleaningMapInitialized = false;
+        cleaningEfficiencyPerPass = 1.0;
     }
 
     public void setCleaningHeatMapVisible(boolean visible) {
@@ -359,28 +367,18 @@ public class HouseVisualizationPane extends Pane {
             return;
         }
 
-        double[][] frontHitbox = computeFrontHitboxCorners();
-        double minX = Double.POSITIVE_INFINITY;
-        double maxX = Double.NEGATIVE_INFINITY;
-        double minY = Double.POSITIVE_INFINITY;
-        double maxY = Double.NEGATIVE_INFINITY;
-        for (double[] corner : frontHitbox) {
-            minX = Math.min(minX, corner[0]);
-            maxX = Math.max(maxX, corner[0]);
-            minY = Math.min(minY, corner[1]);
-            maxY = Math.max(maxY, corner[1]);
-        }
+        double cleanRadius = vacuum.getSize() * CLEANING_RADIUS_RATIO;
+        double centerX = vacuum.getX() + vacuum.getSize() * 0.5;
+        double centerY = vacuum.getY() + vacuum.getSize() * 0.5;
 
-        int startGx = (int) Math.floor(minX);
-        int endGx = (int) Math.floor(maxX);
-        int startGy = (int) Math.floor(minY);
-        int endGy = (int) Math.floor(maxY);
+        int startGx = (int) Math.floor(centerX - cleanRadius);
+        int endGx = (int) Math.floor(centerX + cleanRadius);
+        int startGy = (int) Math.floor(centerY - cleanRadius);
+        int endGy = (int) Math.floor(centerY + cleanRadius);
 
         for (int gx = startGx; gx <= endGx; gx++) {
             for (int gy = startGy; gy <= endGy; gy++) {
-                double centerX = gx + 0.5;
-                double centerY = gy + 0.5;
-                if (!pointInConvexQuad(centerX, centerY, frontHitbox)) {
+                if (!circleIntersectsTile(centerX, centerY, cleanRadius, gx, gy)) {
                     continue;
                 }
 
@@ -398,6 +396,14 @@ public class HouseVisualizationPane extends Pane {
         }
     }
 
+    private boolean circleIntersectsTile(double cx, double cy, double radius, int tileX,
+            int tileY) {
+        double nearestX = Math.max(tileX, Math.min(cx, tileX + 1.0));
+        double nearestY = Math.max(tileY, Math.min(cy, tileY + 1.0));
+        double dx = cx - nearestX;
+        double dy = cy - nearestY;
+        return (dx * dx + dy * dy) <= (radius * radius);
+    }
     private void initializeCleaningMapIfNeeded() {
         if (cleaningMapInitialized) {
             return;
@@ -408,7 +414,9 @@ public class HouseVisualizationPane extends Pane {
             return;
         }
 
-        int requiredPasses = toRequiredPasses(house.getFloorCovering().getDefaultEfficiency());
+        cleaningEfficiencyPerPass =
+                Math.max(0.01, Math.min(1.0, house.getFloorCovering().getDefaultEfficiency()));
+        int requiredPasses = toRequiredPasses(cleaningEfficiencyPerPass);
 
         double minX = Double.POSITIVE_INFINITY;
         double maxX = Double.NEGATIVE_INFINITY;
@@ -468,7 +476,7 @@ public class HouseVisualizationPane extends Pane {
         for (long tileKey : cleanableTiles) {
             int required = tilePassRequirements.getOrDefault(tileKey, 1);
             int passes = tilePassCounts.getOrDefault(tileKey, 0);
-            double progress = Math.min(1.0, passes / (double) required);
+            double progress = Math.min(1.0, passes * cleaningEfficiencyPerPass);
 
             int gx = decodeTileX(tileKey);
             int gy = decodeTileY(tileKey);
@@ -504,66 +512,9 @@ public class HouseVisualizationPane extends Pane {
 
     private int toRequiredPasses(double efficiency) {
         double clamped = Math.max(0.01, Math.min(1.0, efficiency));
+        // Each pass contributes floor efficiency worth of cleaning.
         return Math.max(1, (int) Math.ceil(1.0 / clamped));
     }
-
-    private double[][] computeFrontHitboxCorners() {
-        double size = vacuum.getSize();
-        double centerX = vacuum.getX() + size / 2.0;
-        double centerY = vacuum.getY() + size / 2.0;
-
-        double radians = Math.toRadians(vacuum.getOrientation());
-        double forwardX = Math.cos(radians);
-        double forwardY = Math.sin(radians);
-        double rightX = -forwardY;
-        double rightY = forwardX;
-
-        double halfWidth = (size * FRONT_HITBOX_WIDTH_RATIO) / 2.0;
-        double halfDepth = (size * FRONT_HITBOX_DEPTH_RATIO) / 2.0;
-
-        // Keep the strip under the front edge, not projected ahead of the robot body.
-        double frontCenterX = centerX + forwardX * (size / 2.0 - halfDepth);
-        double frontCenterY = centerY + forwardY * (size / 2.0 - halfDepth);
-
-        double[][] corners = new double[4][2];
-        corners[0][0] = frontCenterX - rightX * halfWidth - forwardX * halfDepth;
-        corners[0][1] = frontCenterY - rightY * halfWidth - forwardY * halfDepth;
-
-        corners[1][0] = frontCenterX + rightX * halfWidth - forwardX * halfDepth;
-        corners[1][1] = frontCenterY + rightY * halfWidth - forwardY * halfDepth;
-
-        corners[2][0] = frontCenterX + rightX * halfWidth + forwardX * halfDepth;
-        corners[2][1] = frontCenterY + rightY * halfWidth + forwardY * halfDepth;
-
-        corners[3][0] = frontCenterX - rightX * halfWidth + forwardX * halfDepth;
-        corners[3][1] = frontCenterY - rightY * halfWidth + forwardY * halfDepth;
-
-        return corners;
-    }
-
-    private boolean pointInConvexQuad(double px, double py, double[][] corners) {
-        boolean hasNegative = false;
-        boolean hasPositive = false;
-
-        for (int i = 0; i < corners.length; i++) {
-            double[] a = corners[i];
-            double[] b = corners[(i + 1) % corners.length];
-            double cross = (b[0] - a[0]) * (py - a[1]) - (b[1] - a[1]) * (px - a[0]);
-
-            if (cross < 0) {
-                hasNegative = true;
-            } else if (cross > 0) {
-                hasPositive = true;
-            }
-
-            if (hasNegative && hasPositive) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     private long encodeTileKey(int gx, int gy) {
         return (((long) gx) << 32) ^ (gy & 0xffffffffL);
     }
@@ -775,6 +726,8 @@ public class HouseVisualizationPane extends Pane {
     }
 
     private void selectRoom(Room room, Rectangle rect) {
+        deselectObstruction();
+
         if (selectedRoomRect != null && selectedRoomRect != rect) {
             selectedRoomRect.setStroke(darkMode ? DARK_WALL_COLOR : WALL_COLOR);
             selectedRoomRect.setStrokeWidth(2.0);
@@ -786,6 +739,15 @@ public class HouseVisualizationPane extends Pane {
         rect.setStrokeWidth(4.0);
 
         updateResizeHandles(rect);
+    }
+
+    private void selectObstruction(Obstruction obstruction, Rectangle rect) {
+        deselectRoom();
+
+        selectedObstructionModel = obstruction;
+        selectedObstructionRect = rect;
+        rect.setStroke(darkMode ? DARK_SELECTION_COLOR : SELECTION_COLOR);
+        rect.setStrokeWidth(3.0);
     }
 
     private void updateResizeHandles(Rectangle rect) {
@@ -1161,6 +1123,189 @@ public class HouseVisualizationPane extends Pane {
         bottomHandle.setVisible(false);
     }
 
+    public void deselectObstruction() {
+        selectedObstructionModel = null;
+        selectedObstructionRect = null;
+    }
+
+    public void deselectAll() {
+        deselectRoom();
+        deselectObstruction();
+    }
+
+    public boolean hasSelectedObstruction() {
+        return selectedObstructionModel != null;
+    }
+
+    public boolean hasSelection() {
+        return selectedRoomModel != null || selectedObstructionModel != null;
+    }
+
+    public double getSelectedObstructionWidth() {
+        return selectedObstructionModel != null ? selectedObstructionModel.getWidth() : 0;
+    }
+
+    public double getSelectedObstructionHeight() {
+        return selectedObstructionModel != null ? selectedObstructionModel.getHeight() : 0;
+    }
+
+    public boolean resizeSelectedObstruction(double newWidth, double newHeight) {
+        if (selectedObstructionModel == null) {
+            notifyStatus("No obstruction is selected");
+            return false;
+        }
+        if (newWidth <= 0 || newHeight <= 0) {
+            notifyStatus("Furniture dimensions must be positive");
+            return false;
+        }
+
+        Obstruction original = selectedObstructionModel;
+        Room room = original.getRoom();
+        if (room == null) {
+            notifyStatus("Selected obstruction is not bound to a room");
+            return false;
+        }
+
+        double x = original.getX();
+        double y = original.getY();
+        if (x < room.getX() || y < room.getY() || x + newWidth > room.getMaxX()
+                || y + newHeight > room.getMaxY()) {
+            notifyStatus("Resized furniture must remain inside its room");
+            return false;
+        }
+
+        Obstruction replacement;
+        if (original instanceof PassUnderObstruction passUnder) {
+            double widthScale = newWidth / Math.max(0.01, original.getWidth());
+            double heightScale = newHeight / Math.max(0.01, original.getHeight());
+            double legDiameterInches = passUnder.getLegDiameter() * 12.0;
+            double hSpace = Math.max(0.1, passUnder.getHSpaceBetweenLegs() * widthScale);
+            double vSpace = Math.max(0.1, passUnder.getVSpaceBetweenLegs() * heightScale);
+            replacement = new PassUnderObstruction(room, x, y, newWidth, newHeight,
+                    legDiameterInches, hSpace, vSpace);
+        } else {
+            replacement = new BlockingObstruction(room, x, y, newWidth, newHeight);
+        }
+
+        house.removeObstruction(original);
+        try {
+            house.addObstruction(replacement);
+            selectedObstructionModel = replacement;
+            notifyHouseChanged();
+            render();
+            return true;
+        } catch (IllegalArgumentException ex) {
+            house.addObstruction(original);
+            selectedObstructionModel = original;
+            notifyStatus("Cannot resize furniture: " + ex.getMessage());
+            render();
+            return false;
+        }
+    }
+
+    public boolean deleteSelectedElement() {
+        if (selectedObstructionModel != null) {
+            house.removeObstruction(selectedObstructionModel);
+            deselectObstruction();
+            notifyHouseChanged();
+            render();
+            return true;
+        }
+
+        if (selectedRoomModel != null) {
+            String validationError = validateRoomDeletion(selectedRoomModel);
+            if (validationError != null) {
+                notifyStatus(validationError);
+                return false;
+            }
+
+            Room toDelete = selectedRoomModel;
+            List<Obstruction> toRemove = new ArrayList<>();
+            for (Obstruction obstruction : house.getObstructions()) {
+                if (obstruction.getRoom() == toDelete) {
+                    toRemove.add(obstruction);
+                }
+            }
+            for (Obstruction obstruction : toRemove) {
+                house.removeObstruction(obstruction);
+            }
+
+            house.removeRoom(toDelete);
+            deselectRoom();
+            notifyHouseChanged();
+            render();
+            return true;
+        }
+
+        notifyStatus("Nothing selected");
+        return false;
+    }
+
+    private String validateRoomDeletion(Room roomToDelete) {
+        int remainingRoomCount = house.getRooms().size() - 1;
+        if (remainingRoomCount < 1) {
+            return "Cannot delete the final room";
+        }
+
+        double remainingArea = house.getTotalArea() - roomToDelete.getArea();
+        if (remainingArea < House.MIN_TOTAL_AREA) {
+            return String.format("Deleting this room would put house area below %.0f ft²",
+                    House.MIN_TOTAL_AREA);
+        }
+
+        List<Room> remainingRooms = new ArrayList<>();
+        for (Room room : house.getRooms()) {
+            if (room != roomToDelete) {
+                remainingRooms.add(room);
+            }
+        }
+
+        List<Door> remainingDoors = new ArrayList<>();
+        for (Door door : house.getDoors()) {
+            if (!door.connects(roomToDelete)) {
+                remainingDoors.add(door);
+            }
+        }
+
+        for (Room room : remainingRooms) {
+            boolean hasDoor = false;
+            for (Door door : remainingDoors) {
+                if (door.connects(room)) {
+                    hasDoor = true;
+                    break;
+                }
+            }
+            if (!hasDoor) {
+                return "Deleting this room would leave another room disconnected";
+            }
+        }
+
+        List<Room> frontier = new ArrayList<>();
+        List<Room> visited = new ArrayList<>();
+        frontier.add(remainingRooms.get(0));
+        visited.add(remainingRooms.get(0));
+
+        while (!frontier.isEmpty()) {
+            Room current = frontier.remove(0);
+            for (Door door : remainingDoors) {
+                if (!door.connects(current)) {
+                    continue;
+                }
+                Room next = door.getOtherRoom(current);
+                if (next != null && !visited.contains(next)) {
+                    visited.add(next);
+                    frontier.add(next);
+                }
+            }
+        }
+
+        if (visited.size() != remainingRooms.size()) {
+            return "Deleting this room would split the house into disconnected sections";
+        }
+
+        return null;
+    }
+
     private void renderDoors() {
         for (Door door : house.getDoors()) {
             Line doorLine = new Line();
@@ -1208,8 +1353,27 @@ public class HouseVisualizationPane extends Pane {
                 rect.getStrokeDashArray().addAll(5.0, 5.0);
             }
 
-            rect.setStrokeWidth(1.5);
-            rect.setMouseTransparent(true);
+            boolean isSelectedObstruction = selectedObstructionModel == obstruction;
+            if (isSelectedObstruction) {
+                rect.setStroke(darkMode ? DARK_SELECTION_COLOR : SELECTION_COLOR);
+                rect.setStrokeWidth(3.0);
+                selectedObstructionRect = rect;
+            } else {
+                rect.setStrokeWidth(1.5);
+            }
+
+            rect.setMouseTransparent(false);
+
+            rect.setOnMouseClicked(e -> {
+                if (editMode && !addObstructionMode) {
+                    selectObstruction(obstruction, rect);
+                    notifyStatus("Selected obstruction");
+                } else if (robotPlacementHandler != null) {
+                    Point2D model = sceneToModel(e.getSceneX(), e.getSceneY());
+                    robotPlacementHandler.accept(model);
+                }
+                e.consume();
+            });
 
             this.getChildren().add(rect);
         }
@@ -1315,7 +1479,7 @@ public class HouseVisualizationPane extends Pane {
         if (!enabled) {
             setAddRoomMode(false);
             setAddObstructionMode(false, false);
-            deselectRoom();
+            deselectAll();
         }
         render();
     }
