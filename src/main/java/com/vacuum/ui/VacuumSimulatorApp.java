@@ -68,6 +68,10 @@ public class VacuumSimulatorApp extends Application {
     private boolean darkModeActive = false;
     private boolean cameraTrackingEnabled = false;
     private AnimationTimer cameraTrackingTimer;
+    private Room startupRoom;
+    private double startupX;
+    private double startupY;
+
 
     private Label statusLabel;
     private Label zoomLabel;
@@ -95,7 +99,10 @@ public class VacuumSimulatorApp extends Application {
 
         // Create default house (Req 1.2: valid default state)
         house = createDefaultHouse();
-        vacuum = new Vacuum(20, 11.5);
+        startupRoom = house.getRooms().get(0);
+        startupX = (startupRoom.getX() + startupRoom.getWidth() / 2);
+        startupY = (startupRoom.getY() + startupRoom.getHeight() / 2);
+        vacuum = new Vacuum(startupX, startupY);
         vacuum.createWallColliders(house.getRooms());
         vacuum.addObstructions(house.getObstructions());
 
@@ -930,6 +937,11 @@ public class VacuumSimulatorApp extends Application {
                 long seed = Long.parseLong(value);
                 house.setSeed(seed);
                 house.generateDefaultFloorPlan();
+                startupRoom = house.getRooms().get(0);
+                startupX = (startupRoom.getX() + startupRoom.getWidth() / 2);
+                startupY = (startupRoom.getY() + startupRoom.getHeight() / 2);
+                vacuum.setPosition(startupX, startupY);
+                vacuum.setStartPosition(startupX, startupY);
                 refreshUiAfterModelChange("Regenerated floor plan from seed " + seed, true, true);
             } catch (NumberFormatException ex) {
                 updateStatus("Invalid seed. Please enter a 64-bit integer value.");
@@ -944,8 +956,11 @@ public class VacuumSimulatorApp extends Application {
         house = createDefaultHouse();
         visualizationPane.setHouse(house);
 
-        vacuum.setStartPosition(20, 11.5);
-        vacuum.setPosition(20, 11.5);
+        startupRoom = house.getRooms().get(0);
+        startupX = (startupRoom.getX() + startupRoom.getWidth() / 2);
+        startupY = (startupRoom.getY() + startupRoom.getHeight() / 2);
+        vacuum.setStartPosition(startupX, startupY);
+        vacuum.setPosition(startupX, startupY);
         vacuum.setOrientation(0);
         vacuum.setBattery(100);
 
