@@ -62,14 +62,20 @@ public class Vacuum {
     private Image image;
     private ImageView imageView;
     private List<Rectangle> wallColliders;
+    private boolean collided = false;
+    private double movementSpeed = 20;
 
     private static final double BATTERY_DRAIN_RATE_DEFAULT = 5; // percentage per second
     private static final double VACUUM_SIZE = 1;
 
     // Zig-zag variables
     private boolean movingRight = true;
+    private int turnDirection = 1;
+    private static final double ZIGZAG_ROTATE_SPEED = 90; // degrees per second
+    private int zigPhase = 0;
+    private double rotateAmount;
+    private double moveAmount;
     private double stepSize = 5;
-    private double movementSpeed = 20;
 
     // Spiral variables
     private double spiralAngle = 0;
@@ -78,6 +84,10 @@ public class Vacuum {
 
     // Random bounce variables
     private double randomDirection = Math.random() * 360;
+    private boolean alg4Rotating = false;
+    private double alg4TargetOrientation = 0;
+    private static final double BOUNCE = 360; // degrees per second
+
 
     public Vacuum(double x, double y) {
         this.x = x;
@@ -103,11 +113,16 @@ public class Vacuum {
         this.orientation = 0;
         this.battery = batteryStart;
         setMoveMode(moveMode);
+        zigPhase = 0;
+        turnDirection = 1;
+        collided = false;
         this.lastSpeed = 0;
         this.movingRight = true;
         this.spiralAngle = 0;
         this.spiralRadius = 1;
         this.randomDirection = Math.random() * 360;
+        this.alg4Rotating = true;
+        this.alg4TargetOrientation = 0;
     }
 
     /*
@@ -124,7 +139,6 @@ public class Vacuum {
         this.lastSpeed = speed; // Track speed
         this.x += dx;
         this.y += dy;
-        alignOrientationWithVector(dx, dy);
     }
 
     public void rotate(double rotationSpeed, double deltaTime) {
@@ -158,7 +172,7 @@ public class Vacuum {
                     break;
 
             }
-            testCollision(rollbackX, rollbackY, rollbackSpeed, offsetX, offsetY, screenScale);
+            collided = testCollision(rollbackX, rollbackY, rollbackSpeed);
         } else {
             this.lastSpeed = 0;
             System.out.println("Battery has run out");
@@ -171,27 +185,48 @@ public class Vacuum {
     }
 
     private void alg2(double deltaTime) {
-        double rollbackX = this.x;
-        double rollbackY = this.y;
-
-        if (movingRight) {
-            double dx = movementSpeed * deltaTime;
-            this.x += dx;
-            alignOrientationWithVector(dx, 0);
-        } else {
-            double dx = -movementSpeed * deltaTime;
-            this.x += dx;
-            alignOrientationWithVector(dx, 0);
+        // On collision, begin the turn-step-turn sequence
+        if (collided && zigPhase == 0) {
+            zigPhase = 1;
+            rotateAmount = 90;
+            moveAmount = VACUUM_SIZE;
         }
-        this.lastSpeed = movementSpeed;
 
-        if (checkCollisionAt(this.x, this.y)) {
-            this.x = rollbackX;
-            this.y = rollbackY + stepSize;
-            alignOrientationWithVector(0, stepSize);
-            movingRight = !movingRight;
-            this.lastSpeed = stepSize / Math.max(deltaTime, 1e-9);
+        if (zigPhase == 0) {
+            // Phase 0: drive forward until a collision is detected by update()
+            forward(movementSpeed, deltaTime);
+        } else if (zigPhase == 1 || zigPhase == 3) {
+            // Phase 1 & 3: rotate left (or right when turnDirection == -1) by 90°
+            double step = ZIGZAG_ROTATE_SPEED * deltaTime;
+            if (step >= rotateAmount) {
+                // Finish the remaining rotation exactly, then advance phase
+                orientation += rotateAmount * turnDirection;
+                orientation = orientation % 360;
+                rotateAmount = 0;
+                zigPhase++;
+                if (zigPhase == 4) {
+                    // Both rotations done — back to forward, flip direction for next collision
+                    zigPhase = 0;
+                    turnDirection *= -1;
+                }
+            } else {
+                rotate(ZIGZAG_ROTATE_SPEED * turnDirection, deltaTime);
+                rotateAmount -= step;
+            }
+        } else if (zigPhase == 2) {
+            // Phase 2: step forward one vacuum-size
+            double step = movementSpeed * deltaTime;
+            if (step >= moveAmount) {
+                forward(moveAmount / deltaTime, deltaTime); // cover exactly the remaining distance
+                moveAmount = 0;
+                rotateAmount = 90;
+                zigPhase = 3;
+            } else {
+                forward(movementSpeed, deltaTime);
+                moveAmount -= step;
+            }
         }
+
 
     }
 
@@ -210,33 +245,41 @@ public class Vacuum {
     }
 
     private void alg4(double deltaTime) {
-        double rollbackX = this.x;
-        double rollbackY = this.y;
-
-        double radians = Math.toRadians(randomDirection);
-        double dx = movementSpeed * Math.cos(radians) * deltaTime;
-        double dy = movementSpeed * Math.sin(radians) * deltaTime;
-
-        this.x += dx;
-        this.y += dy;
-        alignOrientationWithVector(dx, dy);
-        this.lastSpeed = movementSpeed;
-
-        if (checkCollisionAt(this.x, this.y)) {
-            this.x = rollbackX;
-            this.y = rollbackY;
-            randomDirection = Math.random() * 360;
-            this.orientation = randomDirection;
+        if (alg4Rotating) {
+            // Rotate in place toward the target orientation; stop moving
             this.lastSpeed = 0;
-        }
 
+            double diff = alg4TargetOrientation - this.orientation;
+            // Normalise to (-180, 180] so we always take the shortest arc
+            diff = ((diff + 180) % 360 + 360) % 360 - 180;
+
+            double step = ZIGZAG_ROTATE_SPEED * deltaTime;
+            if (Math.abs(diff) <= step) {
+                // Close enough — snap to target and resume moving
+                this.orientation = alg4TargetOrientation;
+                alg4Rotating = false;
+            } else {
+                this.orientation += Math.signum(diff) * step;
+                this.orientation = ((this.orientation % 360) + 360) % 360;
+            }
+        } else {
+            if (collided) {
+                // Collision detected by update() last frame: pick a new direction and rotate to it
+                randomDirection = Math.random() * 360;
+                alg4TargetOrientation = randomDirection;
+                alg4Rotating = true;
+                this.lastSpeed = 0;
+            } else {
+                forward(movementSpeed, deltaTime);
+                this.lastSpeed = movementSpeed;
+            }
+        }
     }
 
     /**
      * Improved collision detection with continuous collision checking for high-speed movement
      */
-    private void testCollision(double rollbackX, double rollbackY, double lastSpeed, double offsetX,
-            double offsetY, double screenScale) {
+    private boolean testCollision(double rollbackX, double rollbackY, double lastSpeed) {
         // Check along the full travel path in world space so zoom/offset never affect collision.
         double distance = Math.hypot(x - rollbackX, y - rollbackY);
         int substeps = Math.max(1, (int) Math.ceil(distance / 0.10));
@@ -253,9 +296,10 @@ public class Vacuum {
                 // Collision detected, restore to position before this step
                 x = rollbackX + (stepX * (step - 1));
                 y = rollbackY + (stepY * (step - 1));
-                return;
+                return true;
             }
         }
+        return false;
     }
 
     /**
