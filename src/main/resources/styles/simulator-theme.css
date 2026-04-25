@@ -135,6 +135,12 @@
     -fx-border-width: 0 0 0 1;
 }
 
+.parameters-panel {
+    -fx-background-color: linear-gradient(to bottom, #ecf1f4, #e5edf2);
+    -fx-border-color: #c2cfd7;
+    -fx-border-width: 0 0 0 1;
+}
+
 .panel-title {
     -fx-font-family: "Bahnschrift SemiBold", "Segoe UI Semibold";
     -fx-font-size: 17px;
@@ -336,6 +342,12 @@
 
 .app-root.dark-mode .info-panel,
 .app-root.dark-mode.info-panel {
+    -fx-background-color: linear-gradient(to bottom, #192430, #141f2a);
+    -fx-border-color: #1e3040;
+}
+
+.app-root.dark-mode .parameters-panel,
+.app-root.dark-mode.parameters-panel {
     -fx-background-color: linear-gradient(to bottom, #192430, #141f2a);
     -fx-border-color: #1e3040;
 }
