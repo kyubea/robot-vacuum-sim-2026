@@ -71,6 +71,9 @@ public class VacuumSimulatorApp extends Application {
     private boolean darkModeActive = false;
     private boolean cameraTrackingEnabled = false;
     private AnimationTimer cameraTrackingTimer;
+    private Room startupRoom;
+    private double startupX;
+    private double startupY;
 
     private Label statusLabel;
     private Label zoomLabel;
@@ -105,13 +108,24 @@ public class VacuumSimulatorApp extends Application {
         }
     }
 
+    Button startButton = new Button("Start Simulation");
+    Button stopButton = new Button("Stop Simulation");
+    Button resetButton = new Button("Reset simulation");
+    MenuItem startItem = new MenuItem("Start");
+    MenuItem stopItem = new MenuItem("Stop");
+    MenuItem pauseItem = new MenuItem("Pause");
+    MenuItem resetItem = new MenuItem("Reset");
+
     @Override
     public void start(Stage primaryStage) {
         this.primaryStage = primaryStage;
 
         // Create default house (Req 1.2: valid default state)
         house = createDefaultHouse();
-        vacuum = new Vacuum(20, 11.5);
+        startupRoom = house.getRooms().get(0);
+        startupX = (startupRoom.getX() + startupRoom.getWidth() / 2);
+        startupY = (startupRoom.getY() + startupRoom.getHeight() / 2);
+        vacuum = new Vacuum(startupX, startupY);
         vacuum.createWallColliders(house.getRooms());
         vacuum.addObstructions(house.getObstructions());
 
@@ -726,10 +740,7 @@ public class VacuumSimulatorApp extends Application {
 
         // Simulation menu
         Menu simMenu = new Menu("Simulation");
-        MenuItem startItem = new MenuItem("Start");
-        MenuItem stopItem = new MenuItem("Stop");
-        MenuItem pauseItem = new MenuItem("Pause");
-        MenuItem resetItem = new MenuItem("Reset");
+
         MenuItem regenerateSeedItem = new MenuItem("Regenerate From Seed...");
         MenuItem batchTrialsItem = new MenuItem("Run Batch Trials...");
 
@@ -755,7 +766,9 @@ public class VacuumSimulatorApp extends Application {
             simTimer.stop();
             setSimulationEditingEnabled(true);
             startItem.setDisable(false);
+            startButton.setDisable(false);
             stopItem.setDisable(true);
+            stopButton.setDisable(true);
             pauseItem.setDisable(true);
         });
         resetItem.setOnAction(e -> {
@@ -948,6 +961,11 @@ public class VacuumSimulatorApp extends Application {
                 long seed = Long.parseLong(value);
                 house.setSeed(seed);
                 house.generateDefaultFloorPlan();
+                startupRoom = house.getRooms().get(0);
+                startupX = (startupRoom.getX() + startupRoom.getWidth() / 2);
+                startupY = (startupRoom.getY() + startupRoom.getHeight() / 2);
+                vacuum.setPosition(startupX, startupY);
+                vacuum.setStartPosition(startupX, startupY);
                 refreshUiAfterModelChange("Regenerated floor plan from seed " + seed, true, true);
             } catch (NumberFormatException ex) {
                 updateStatus("Invalid seed. Please enter a 64-bit integer value.");
@@ -1214,8 +1232,11 @@ public class VacuumSimulatorApp extends Application {
         house = createDefaultHouse();
         visualizationPane.setHouse(house);
 
-        vacuum.setStartPosition(20, 11.5);
-        vacuum.setPosition(20, 11.5);
+        startupRoom = house.getRooms().get(0);
+        startupX = (startupRoom.getX() + startupRoom.getWidth() / 2);
+        startupY = (startupRoom.getY() + startupRoom.getHeight() / 2);
+        vacuum.setStartPosition(startupX, startupY);
+        vacuum.setPosition(startupX, startupY);
         vacuum.setOrientation(0);
         vacuum.setBattery(100);
 
@@ -1500,32 +1521,49 @@ public class VacuumSimulatorApp extends Application {
         Label actionsCardTitle = new Label("Simulation");
         actionsCardTitle.getStyleClass().add("card-title");
 
-        Button startButton = new Button("Start Simulation");
-        Button stopButton = new Button("Stop Simulation");
+
         startButton.getStyleClass().add("shell-button");
         stopButton.getStyleClass().add("shell-button");
+        resetButton.getStyleClass().add("shell-button");
         startButton.setMaxWidth(Double.MAX_VALUE);
         stopButton.setMaxWidth(Double.MAX_VALUE);
+        resetButton.setMaxWidth(Double.MAX_VALUE);
+
 
         startButton.setOnAction(e -> {
             if (!startSimulationIfValid()) {
                 return;
             }
             startButton.setDisable(true);
+            startItem.setDisable(true);
             stopButton.setDisable(false);
+            stopItem.setDisable(false);
         });
         stopButton.setOnAction(e -> {
             recordPausedSnapshot();
             simTimer.stop();
             setSimulationEditingEnabled(true);
             startButton.setDisable(false);
+            startItem.setDisable(false);
             stopButton.setDisable(true);
+            stopItem.setDisable(true);
             visualizationPane.render();
+        });
+        resetButton.setOnAction(e -> {
+            simTimer.stop();
+            setSimulationEditingEnabled(true);
+            vacuum.reset(parametersPanel.getStartBattery(), parametersPanel.getSelectedMoveMode());
+            clearPausedSnapshot();
+            visualizationPane.render();
+            startButton.setDisable(false);
+            stopButton.setDisable(true);
+            startItem.setDisable(false);
+            stopItem.setDisable(true);
         });
 
         startButton.setDisable(false);
         stopButton.setDisable(true);
-        actionsCard.getChildren().addAll(actionsCardTitle, startButton, stopButton);
+        actionsCard.getChildren().addAll(actionsCardTitle, startButton, stopButton, resetButton);
 
         panel.getChildren().addAll(titleLabel, houseCard, viewCard, actionsCard);
         return panel;

@@ -464,6 +464,19 @@ public class HouseVisualizationPane extends Pane {
         }
     }
 
+    public double getCleanedArea() {
+        double fullyCleanedArea = 0.0;
+        for (long tileKey : cleanableTiles) {
+            int passes = tilePassCounts.getOrDefault(tileKey, 0);
+            double progress = Math.min(1.0, passes * cleaningEfficiencyPerPass);
+            if (progress >= 1.0) {
+                fullyCleanedArea += TILE_SIZE * TILE_SIZE; // 1.0 ft²
+            }
+        }
+        return fullyCleanedArea;
+
+    }
+
     private void renderCleaningMap() {
         if (!cleaningHeatMapVisible) {
             return;
@@ -1449,6 +1462,10 @@ public class HouseVisualizationPane extends Pane {
 
     public double getScale() {
         return scale;
+    }
+
+    public House getHouse() {
+        return house;
     }
 
     private double snapToGrid(double value) {

@@ -205,7 +205,7 @@ public final class BatchTrialRunner {
         double elapsedSeconds = 0.0;
         while (elapsedSeconds < MAX_SIM_SECONDS && vacuum.getBattery() > 0.0
                 && !coverageTracker.isFullyCleaned()) {
-            vacuum.update(STEP_SECONDS, 0.0, 0.0, 1.0);
+            vacuum.update(STEP_SECONDS);
             coverageTracker.updateFromVacuum(vacuum);
             elapsedSeconds += STEP_SECONDS;
         }
