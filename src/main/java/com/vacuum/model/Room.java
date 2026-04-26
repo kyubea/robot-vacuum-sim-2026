@@ -40,7 +40,7 @@ public class Room {
         }
         if (width * height < MIN_AREA) {
             throw new IllegalArgumentException(String.format(
-                    "Room area (%.2f ft²) is below minimum (%.2f ft²)", width * height, MIN_AREA));
+                    "Room area (%.2f m²) is below minimum (%.2f m²)", width * height, MIN_AREA));
         }
         this.x = x;
         this.y = y;
@@ -188,7 +188,7 @@ public class Room {
     @Override
     public String toString() {
         return String.format(
-                "Room[id=%s, name=%s, pos=(%.1f,%.1f), size=%.1fx%.1f, area=%.1f ft², doors=%d]",
+                "Room[id=%s, name=%s, pos=(%.1f,%.1f), size=%.1fx%.1f, area=%.1f m², doors=%d]",
                 id.substring(0, 8), name, x, y, width, height, getArea(), doors.size());
     }
 }
