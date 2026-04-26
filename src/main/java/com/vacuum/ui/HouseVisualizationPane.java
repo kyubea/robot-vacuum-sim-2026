@@ -404,6 +404,7 @@ public class HouseVisualizationPane extends Pane {
         double dy = cy - nearestY;
         return (dx * dx + dy * dy) <= (radius * radius);
     }
+
     private void initializeCleaningMapIfNeeded() {
         if (cleaningMapInitialized) {
             return;
@@ -515,6 +516,7 @@ public class HouseVisualizationPane extends Pane {
         // Each pass contributes floor efficiency worth of cleaning.
         return Math.max(1, (int) Math.ceil(1.0 / clamped));
     }
+
     private long encodeTileKey(int gx, int gy) {
         return (((long) gx) << 32) ^ (gy & 0xffffffffL);
     }
