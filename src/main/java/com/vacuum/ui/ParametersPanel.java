@@ -173,7 +173,7 @@ public class ParametersPanel extends VBox {
         grid.setVgap(10);
 
         // Battery Drain Rate (percent per second)
-        batteryDrainSpinner = new Spinner<>(0.001, 10.0, 100.0 / (100.0 * 60.0), 0.5);
+        batteryDrainSpinner = new Spinner<>(0.001, 0.200, 100.0 / (100.0 * 60.0), 0.001);
         batteryDrainSpinner.setEditable(true);
         batteryDrainSpinner.valueProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) {
@@ -207,7 +207,7 @@ public class ParametersPanel extends VBox {
                 "Choose how the vacuum moves during simulation");
 
         // Robot speed in ft/s
-        robotSpeedSpinner = new Spinner<>(0.25, 3.00, 1.00, 0.05);
+        robotSpeedSpinner = new Spinner<>(2, 6.00, 2.00, 0.05);
         robotSpeedSpinner.setEditable(true);
         robotSpeedSpinner.valueProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) {

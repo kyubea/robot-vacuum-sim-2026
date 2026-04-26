@@ -1,6 +1,7 @@
 package com.vacuum.ui;
 
 import com.vacuum.model.*;
+import com.vacuum.util.BatchTrialRunner;
 import com.vacuum.util.LayoutPersistence;
 import com.vacuum.util.Vacuum;
 import com.vacuum.util.simulationTimer;
@@ -13,6 +14,8 @@ import javafx.animation.ParallelTransition;
 import javafx.animation.Timeline;
 import javafx.animation.TranslateTransition;
 import javafx.application.Application;
+import javafx.beans.binding.Bindings;
+import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -35,6 +38,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +52,7 @@ public class VacuumSimulatorApp extends Application {
     private static final int WINDOW_HEIGHT = 800;
 
     private HouseVisualizationPane visualizationPane;
+    private StackPane canvasHost;
     private ScrollPane scrollPane;
     private StackPane centerShell;
     private House house;
@@ -72,7 +77,6 @@ public class VacuumSimulatorApp extends Application {
     private double startupX;
     private double startupY;
 
-
     private Label statusLabel;
     private Label zoomLabel;
 
@@ -92,6 +96,19 @@ public class VacuumSimulatorApp extends Application {
     private long simulationChangeVersion = 0;
     private long pausedSnapshotVersion = -1;
     private boolean hasPausedSnapshot = false;
+
+    private static final class BatchTrialSelection {
+        private final List<Vacuum.MoveMode> algorithms;
+        private final int trialsPerAlgorithm;
+        private final BatchTrialRunner.LayoutMode layoutMode;
+
+        private BatchTrialSelection(List<Vacuum.MoveMode> algorithms, int trialsPerAlgorithm,
+                BatchTrialRunner.LayoutMode layoutMode) {
+            this.algorithms = algorithms;
+            this.trialsPerAlgorithm = trialsPerAlgorithm;
+            this.layoutMode = layoutMode;
+        }
+    }
 
     Button startButton = new Button("Start Simulation");
     Button stopButton = new Button("Stop Simulation");
@@ -129,17 +146,37 @@ public class VacuumSimulatorApp extends Application {
 
         // Center: scrollable, pannable visualization
         visualizationPane = new HouseVisualizationPane();
+        visualizationPane.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        visualizationPane.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
         visualizationPane.setVacuum(vacuum);
         visualizationPane.setStatusMessageHandler(this::updateStatus);
         visualizationPane.setHouseChangedHandler(this::handleHouseChanged);
         visualizationPane.setHouse(house);
         simTimer = new simulationTimer(vacuum, visualizationPane);
 
-        scrollPane = new ScrollPane(visualizationPane);
+        canvasHost = new StackPane(visualizationPane);
+        canvasHost.getStyleClass().add("canvas-host");
+        canvasHost.setAlignment(Pos.CENTER);
+
+        scrollPane = new ScrollPane(canvasHost);
         scrollPane.setPannable(true); // Enable panning by dragging
         scrollPane.setFitToWidth(false);
         scrollPane.setFitToHeight(false);
         scrollPane.getStyleClass().add("house-scroll-pane");
+        canvasHost.prefWidthProperty().bind(Bindings.createDoubleBinding(
+                () -> Math.max(scrollPane.getViewportBounds().getWidth(),
+                        visualizationPane.getBoundsInLocal().getWidth()),
+                scrollPane.viewportBoundsProperty(), visualizationPane.boundsInLocalProperty()));
+        canvasHost.prefHeightProperty().bind(Bindings.createDoubleBinding(
+                () -> Math.max(scrollPane.getViewportBounds().getHeight(),
+                        visualizationPane.getBoundsInLocal().getHeight()),
+                scrollPane.viewportBoundsProperty(), visualizationPane.boundsInLocalProperty()));
+        canvasHost.minWidthProperty()
+                .bind(Bindings.createDoubleBinding(() -> scrollPane.getViewportBounds().getWidth(),
+                        scrollPane.viewportBoundsProperty()));
+        canvasHost.minHeightProperty()
+                .bind(Bindings.createDoubleBinding(() -> scrollPane.getViewportBounds().getHeight(),
+                        scrollPane.viewportBoundsProperty()));
 
         // Add zoom functionality with mouse wheel
         scrollPane.addEventFilter(ScrollEvent.SCROLL, event -> {
@@ -147,13 +184,7 @@ public class VacuumSimulatorApp extends Application {
                 event.consume();
                 double deltaY = event.getDeltaY();
                 double scaleFactor = (deltaY > 0) ? 1.1 : 0.9;
-
-                double newScale = visualizationPane.getScale() * scaleFactor;
-                // Clamp zoom between 2x and 50x
-                newScale = Math.max(2.0, Math.min(50.0, newScale));
-
-                visualizationPane.setScale(newScale);
-                updateZoomLabel();
+                zoomByFactorCentered(scaleFactor);
             }
         });
 
@@ -343,7 +374,7 @@ public class VacuumSimulatorApp extends Application {
         Button resetZoomButton = new Button("100%");
         resetZoomButton.getStyleClass().add("strip-button");
         resetZoomButton.setOnAction(e -> {
-            visualizationPane.setScale(10.0);
+            zoomToScaleCentered(10.0);
             updateZoomLabel();
             updateStatus("Zoom reset to 100%");
         });
@@ -714,7 +745,7 @@ public class VacuumSimulatorApp extends Application {
         zoomInItem.setOnAction(e -> zoom(1.2));
         zoomOutItem.setOnAction(e -> zoom(0.8));
         resetZoomItem.setOnAction(e -> {
-            visualizationPane.setScale(10.0);
+            zoomToScaleCentered(10.0);
             updateZoomLabel();
             updateStatus("Zoom reset to 100%");
         });
@@ -727,6 +758,7 @@ public class VacuumSimulatorApp extends Application {
         Menu simMenu = new Menu("Simulation");
 
         MenuItem regenerateSeedItem = new MenuItem("Regenerate From Seed...");
+        MenuItem batchTrialsItem = new MenuItem("Run Batch Trials...");
 
         startItem.setOnAction(e -> {
             if (!startSimulationIfValid()) {
@@ -766,13 +798,14 @@ public class VacuumSimulatorApp extends Application {
             pauseItem.setDisable(true);
         });
         regenerateSeedItem.setOnAction(e -> promptAndRegenerateFromSeed());
+        batchTrialsItem.setOnAction(e -> promptAndRunBatchTrials());
 
         startItem.setDisable(false);
         stopItem.setDisable(true);
         pauseItem.setDisable(true);
 
         simMenu.getItems().addAll(startItem, stopItem, pauseItem, new SeparatorMenuItem(),
-                regenerateSeedItem, resetItem);
+                regenerateSeedItem, batchTrialsItem, resetItem);
 
         // Help menu
         Menu helpMenu = new Menu("Help");
@@ -788,11 +821,68 @@ public class VacuumSimulatorApp extends Application {
      * Zoom in or out by a factor
      */
     private void zoom(double factor) {
-        double newScale = visualizationPane.getScale() * factor;
-        newScale = Math.max(2.0, Math.min(50.0, newScale));
-        visualizationPane.setScale(newScale);
+        zoomByFactorCentered(factor);
+        double newScale = visualizationPane.getScale();
         updateZoomLabel();
         updateStatus(String.format("Zoom %.0f%%", (newScale / 10.0) * 100));
+    }
+
+    private void zoomByFactorCentered(double factor) {
+        double oldScale = visualizationPane.getScale();
+        double newScale = Math.max(2.0, Math.min(50.0, oldScale * factor));
+        zoomToScaleCentered(newScale);
+    }
+
+    private void zoomToScaleCentered(double newScale) {
+        if (scrollPane == null || visualizationPane == null || canvasHost == null) {
+            return;
+        }
+
+        double oldScale = visualizationPane.getScale();
+        if (Math.abs(newScale - oldScale) < 1e-6) {
+            return;
+        }
+
+        double viewportWidth = scrollPane.getViewportBounds().getWidth();
+        double viewportHeight = scrollPane.getViewportBounds().getHeight();
+        double oldContentWidth = canvasHost.getLayoutBounds().getWidth();
+        double oldContentHeight = canvasHost.getLayoutBounds().getHeight();
+
+        double oldMaxLeft = Math.max(0.0, oldContentWidth - viewportWidth);
+        double oldMaxTop = Math.max(0.0, oldContentHeight - viewportHeight);
+        double oldLeft = oldMaxLeft > 0 ? scrollPane.getHvalue() * oldMaxLeft : 0.0;
+        double oldTop = oldMaxTop > 0 ? scrollPane.getVvalue() * oldMaxTop : 0.0;
+
+        // Keep the same model point at the viewport center through the zoom transition.
+        double centerContentX = oldLeft + viewportWidth * 0.5;
+        double centerContentY = oldTop + viewportHeight * 0.5;
+        double centerModelX =
+                (centerContentX - visualizationPane.getLayoutX() - visualizationPane.getOffsetX())
+                        / oldScale;
+        double centerModelY =
+                (centerContentY - visualizationPane.getLayoutY() - visualizationPane.getOffsetY())
+                        / oldScale;
+
+        visualizationPane.setScale(newScale);
+        scrollPane.applyCss();
+        scrollPane.layout();
+        canvasHost.applyCss();
+        canvasHost.layout();
+
+        double newContentWidth = canvasHost.getLayoutBounds().getWidth();
+        double newContentHeight = canvasHost.getLayoutBounds().getHeight();
+        double newCenterX = visualizationPane.getLayoutX() + visualizationPane.getOffsetX()
+                + centerModelX * newScale;
+        double newCenterY = visualizationPane.getLayoutY() + visualizationPane.getOffsetY()
+                + centerModelY * newScale;
+
+        double newMaxLeft = Math.max(0.0, newContentWidth - viewportWidth);
+        double newMaxTop = Math.max(0.0, newContentHeight - viewportHeight);
+        double newLeft = Math.max(0.0, Math.min(newMaxLeft, newCenterX - viewportWidth * 0.5));
+        double newTop = Math.max(0.0, Math.min(newMaxTop, newCenterY - viewportHeight * 0.5));
+
+        scrollPane.setHvalue(newMaxLeft > 0 ? newLeft / newMaxLeft : 0.0);
+        scrollPane.setVvalue(newMaxTop > 0 ? newTop / newMaxTop : 0.0);
     }
 
     /**
@@ -954,6 +1044,258 @@ public class VacuumSimulatorApp extends Application {
                 updateStatus("Invalid seed. Please enter a 64-bit integer value.");
             }
         });
+    }
+
+    private void promptAndRunBatchTrials() {
+        if (house == null) {
+            updateStatus("Cannot run trials: house is not initialized");
+            return;
+        }
+
+        if (simTimer.isActive()) {
+            simTimer.stop();
+            setSimulationEditingEnabled(true);
+            updateStatus("Stopped active simulation before batch trials");
+        }
+
+        Dialog<BatchTrialSelection> dialog = new Dialog<>();
+        dialog.initOwner(primaryStage);
+        dialog.setTitle("Batch Simulation Trials");
+        dialog.setHeaderText("Run repeated simulated trials and compare cleaning efficiency");
+
+        ButtonType runButtonType = new ButtonType("Run Trials", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(runButtonType, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(8, 0, 0, 0));
+
+        Vacuum.MoveMode currentMode =
+                Vacuum.MoveMode.fromCode(parametersPanel.getSelectedMoveMode());
+        Label algorithmLabel = new Label("Algorithms to include");
+        VBox algorithmBox = new VBox(6);
+        CheckBox selectAllAlgorithms = new CheckBox("Select all algorithms");
+
+        Map<Vacuum.MoveMode, CheckBox> algorithmChecks = new EnumMap<>(Vacuum.MoveMode.class);
+        for (Vacuum.MoveMode mode : Vacuum.MoveMode.values()) {
+            CheckBox check = new CheckBox(mode.toString());
+            check.setSelected(mode == currentMode);
+            algorithmChecks.put(mode, check);
+            algorithmBox.getChildren().add(check);
+        }
+
+        selectAllAlgorithms.selectedProperty().addListener((obs, oldVal, selected) -> {
+            for (CheckBox check : algorithmChecks.values()) {
+                check.setSelected(selected);
+            }
+        });
+
+        for (CheckBox check : algorithmChecks.values()) {
+            check.selectedProperty().addListener((obs, oldVal, newVal) -> {
+                boolean allSelected =
+                        algorithmChecks.values().stream().allMatch(CheckBox::isSelected);
+                if (selectAllAlgorithms.isSelected() != allSelected) {
+                    selectAllAlgorithms.setSelected(allSelected);
+                }
+            });
+        }
+
+        Spinner<Integer> trialsSpinner = new Spinner<>(1, 500, 20, 1);
+        trialsSpinner.setEditable(true);
+        trialsSpinner.setMaxWidth(Double.MAX_VALUE);
+
+        ComboBox<String> layoutCombo = new ComboBox<>();
+        layoutCombo.getItems().addAll("Same layout each trial", "Different generated layouts");
+        layoutCombo.setValue("Same layout each trial");
+        layoutCombo.setMaxWidth(Double.MAX_VALUE);
+
+        Label hint = new Label(
+                "Each trial runs until battery is depleted or cleaned coverage reaches 100%.");
+        Label detailHint =
+                new Label("Tip: select fewer algorithms and fewer trials for faster feedback.");
+        hint.setWrapText(true);
+        detailHint.setWrapText(true);
+        hint.getStyleClass().add("hint-text");
+        detailHint.getStyleClass().add("hint-text");
+
+        grid.add(algorithmLabel, 0, 0);
+        grid.add(selectAllAlgorithms, 1, 0);
+        grid.add(algorithmBox, 1, 1);
+        grid.add(new Label("Trials per algorithm"), 0, 2);
+        grid.add(trialsSpinner, 1, 2);
+        grid.add(new Label("Layout mode"), 0, 3);
+        grid.add(layoutCombo, 1, 3);
+        grid.add(hint, 0, 4, 2, 1);
+        grid.add(detailHint, 0, 5, 2, 1);
+
+        dialog.getDialogPane().setContent(grid);
+
+        dialog.setResultConverter(button -> {
+            if (button != runButtonType) {
+                return null;
+            }
+
+            List<Vacuum.MoveMode> selectedModes = new ArrayList<>();
+            for (Map.Entry<Vacuum.MoveMode, CheckBox> entry : algorithmChecks.entrySet()) {
+                if (entry.getValue().isSelected()) {
+                    selectedModes.add(entry.getKey());
+                }
+            }
+
+            if (selectedModes.isEmpty()) {
+                selectedModes.add(currentMode);
+            }
+
+            BatchTrialRunner.LayoutMode layoutMode =
+                    "Different generated layouts".equals(layoutCombo.getValue())
+                            ? BatchTrialRunner.LayoutMode.DIFFERENT_LAYOUT
+                            : BatchTrialRunner.LayoutMode.SAME_LAYOUT;
+
+            return new BatchTrialSelection(selectedModes, trialsSpinner.getValue(), layoutMode);
+        });
+
+        dialog.showAndWait().ifPresent(selection -> {
+            if (selection.layoutMode == BatchTrialRunner.LayoutMode.SAME_LAYOUT) {
+                List<String> errors = house.validate();
+                if (!errors.isEmpty()) {
+                    updateStatus("Cannot run same-layout trials: " + errors.get(0));
+                    return;
+                }
+            }
+
+            runBatchTrials(selection);
+        });
+    }
+
+    private void runBatchTrials(BatchTrialSelection selection) {
+        int totalTrials = selection.trialsPerAlgorithm * selection.algorithms.size();
+        BatchTrialRunner.BatchConfig config = new BatchTrialRunner.BatchConfig(house,
+                selection.trialsPerAlgorithm, selection.algorithms, selection.layoutMode,
+                parametersPanel.getStartBattery(), parametersPanel.getBatteryDrainRatePercent(),
+                parametersPanel.getRobotSpeedFeetPerSec(), vacuum.getStartX(), vacuum.getStartY(),
+                System.nanoTime());
+
+        final Task<BatchTrialRunner.BatchRunResult>[] taskRef = new Task[1];
+        Task<BatchTrialRunner.BatchRunResult> task = new Task<>() {
+            @Override
+            protected BatchTrialRunner.BatchRunResult call() {
+                updateProgress(0, totalTrials);
+                updateMessage("Preparing batch trials...");
+
+                return BatchTrialRunner.run(config, new BatchTrialRunner.ProgressListener() {
+                    @Override
+                    public void onProgress(int completedTrials, int totalTrials, String message) {
+                        updateProgress(completedTrials, totalTrials);
+                        updateMessage(message);
+                    }
+
+                    @Override
+                    public boolean isCancelled() {
+                        return taskRef[0] != null && taskRef[0].isCancelled();
+                    }
+                });
+            }
+        };
+        taskRef[0] = task;
+
+        Stage progressStage = new Stage();
+        progressStage.initOwner(primaryStage);
+        progressStage.initModality(Modality.APPLICATION_MODAL);
+        progressStage.setTitle("Running Batch Trials");
+
+        VBox content = new VBox(12);
+        content.setPadding(new Insets(16));
+        content.setMinWidth(420);
+
+        Label titleLabel = new Label("Executing simulation trials...");
+        ProgressBar progressBar = new ProgressBar(0);
+        progressBar.setMaxWidth(Double.MAX_VALUE);
+        Label progressLabel = new Label();
+        Button cancelButton = new Button("Cancel");
+        cancelButton.getStyleClass().add("shell-button");
+        cancelButton.setOnAction(e -> task.cancel());
+
+        progressBar.progressProperty().bind(task.progressProperty());
+        progressLabel.textProperty().bind(task.messageProperty());
+
+        content.getChildren().addAll(titleLabel, progressBar, progressLabel, cancelButton);
+        Scene scene = new Scene(content);
+        URL cssUrl = getClass().getResource("/styles/simulator-theme.css");
+        if (cssUrl != null) {
+            scene.getStylesheets().add(cssUrl.toExternalForm());
+        }
+        progressStage.setScene(scene);
+
+        task.setOnSucceeded(e -> {
+            progressStage.close();
+            BatchTrialRunner.BatchRunResult result = task.getValue();
+            showBatchTrialResults(result, selection.layoutMode, selection.trialsPerAlgorithm);
+            updateStatus("Batch trials completed");
+        });
+
+        task.setOnCancelled(e -> {
+            progressStage.close();
+            updateStatus("Batch trials cancelled");
+        });
+
+        task.setOnFailed(e -> {
+            progressStage.close();
+            Throwable error = task.getException();
+            showPersistenceError("Batch Trials Failed",
+                    error != null ? error.getMessage() : "Unexpected error");
+            updateStatus("Batch trials failed");
+        });
+
+        Thread worker = new Thread(task, "batch-trials-runner");
+        worker.setDaemon(true);
+        worker.start();
+        progressStage.show();
+    }
+
+    private void showBatchTrialResults(BatchTrialRunner.BatchRunResult result,
+            BatchTrialRunner.LayoutMode layoutMode, int trialsPerAlgorithm) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.initOwner(primaryStage);
+        alert.setTitle("Batch Trial Results");
+        alert.setHeaderText("Cleaning Efficiency Summary");
+
+        StringBuilder summary = new StringBuilder();
+        summary.append("Layout mode: ")
+                .append(layoutMode == BatchTrialRunner.LayoutMode.SAME_LAYOUT ? "Same layout"
+                        : "Different generated layouts")
+                .append('\n');
+        summary.append("Trials per algorithm: ").append(trialsPerAlgorithm).append("\n");
+        summary.append("Completed trials: ").append(result.getCompletedTrials()).append("/")
+                .append(result.getTotalTrials()).append("\n\n");
+
+        for (Map.Entry<Vacuum.MoveMode, BatchTrialRunner.AlgorithmStats> entry : result
+                .getStatsByAlgorithm().entrySet()) {
+            BatchTrialRunner.AlgorithmStats stats = entry.getValue();
+            summary.append(entry.getKey()).append('\n');
+            summary.append("  Average efficiency: ")
+                    .append(String.format("%.1f%%", stats.getAverageEfficiency() * 100.0))
+                    .append('\n');
+            summary.append("  Min / Max: ")
+                    .append(String.format("%.1f%%", stats.getMinEfficiency() * 100.0)).append(" / ")
+                    .append(String.format("%.1f%%", stats.getMaxEfficiency() * 100.0)).append('\n');
+            summary.append("  Std Dev: ")
+                    .append(String.format("%.1f%%", stats.getStdDevEfficiency() * 100.0))
+                    .append('\n');
+            summary.append("  Avg duration: ")
+                    .append(String.format("%.1f min", stats.getAverageDurationSeconds() / 60.0))
+                    .append('\n');
+            summary.append("  Trials: ").append(stats.getTrials()).append("\n\n");
+        }
+
+        TextArea textArea = new TextArea(summary.toString());
+        textArea.setEditable(false);
+        textArea.setWrapText(true);
+        textArea.setPrefColumnCount(56);
+        textArea.setPrefRowCount(20);
+
+        alert.getDialogPane().setContent(textArea);
+        alert.showAndWait();
     }
 
     private void createNewLayout() {
