@@ -93,6 +93,14 @@ public class VacuumSimulatorApp extends Application {
     private long pausedSnapshotVersion = -1;
     private boolean hasPausedSnapshot = false;
 
+    Button startButton = new Button("Start Simulation");
+    Button stopButton = new Button("Stop Simulation");
+    Button resetButton = new Button("Reset simulation");
+    MenuItem startItem = new MenuItem("Start");
+    MenuItem stopItem = new MenuItem("Stop");
+    MenuItem pauseItem = new MenuItem("Pause");
+    MenuItem resetItem = new MenuItem("Reset");
+
     @Override
     public void start(Stage primaryStage) {
         this.primaryStage = primaryStage;
@@ -717,10 +725,7 @@ public class VacuumSimulatorApp extends Application {
 
         // Simulation menu
         Menu simMenu = new Menu("Simulation");
-        MenuItem startItem = new MenuItem("Start");
-        MenuItem stopItem = new MenuItem("Stop");
-        MenuItem pauseItem = new MenuItem("Pause");
-        MenuItem resetItem = new MenuItem("Reset");
+
         MenuItem regenerateSeedItem = new MenuItem("Regenerate From Seed...");
 
         startItem.setOnAction(e -> {
@@ -745,7 +750,9 @@ public class VacuumSimulatorApp extends Application {
             simTimer.stop();
             setSimulationEditingEnabled(true);
             startItem.setDisable(false);
+            startButton.setDisable(false);
             stopItem.setDisable(true);
+            stopButton.setDisable(true);
             pauseItem.setDisable(true);
         });
         resetItem.setOnAction(e -> {
@@ -1245,32 +1252,49 @@ public class VacuumSimulatorApp extends Application {
         Label actionsCardTitle = new Label("Simulation");
         actionsCardTitle.getStyleClass().add("card-title");
 
-        Button startButton = new Button("Start Simulation");
-        Button stopButton = new Button("Stop Simulation");
+
         startButton.getStyleClass().add("shell-button");
         stopButton.getStyleClass().add("shell-button");
+        resetButton.getStyleClass().add("shell-button");
         startButton.setMaxWidth(Double.MAX_VALUE);
         stopButton.setMaxWidth(Double.MAX_VALUE);
+        resetButton.setMaxWidth(Double.MAX_VALUE);
+
 
         startButton.setOnAction(e -> {
             if (!startSimulationIfValid()) {
                 return;
             }
             startButton.setDisable(true);
+            startItem.setDisable(true);
             stopButton.setDisable(false);
+            stopItem.setDisable(false);
         });
         stopButton.setOnAction(e -> {
             recordPausedSnapshot();
             simTimer.stop();
             setSimulationEditingEnabled(true);
             startButton.setDisable(false);
+            startItem.setDisable(false);
             stopButton.setDisable(true);
+            stopItem.setDisable(true);
             visualizationPane.render();
+        });
+        resetButton.setOnAction(e -> {
+            simTimer.stop();
+            setSimulationEditingEnabled(true);
+            vacuum.reset(parametersPanel.getStartBattery(), parametersPanel.getSelectedMoveMode());
+            clearPausedSnapshot();
+            visualizationPane.render();
+            startButton.setDisable(false);
+            stopButton.setDisable(true);
+            startItem.setDisable(false);
+            stopItem.setDisable(true);
         });
 
         startButton.setDisable(false);
         stopButton.setDisable(true);
-        actionsCard.getChildren().addAll(actionsCardTitle, startButton, stopButton);
+        actionsCard.getChildren().addAll(actionsCardTitle, startButton, stopButton, resetButton);
 
         panel.getChildren().addAll(titleLabel, houseCard, viewCard, actionsCard);
         return panel;
