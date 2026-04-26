@@ -25,6 +25,7 @@ public class ParametersPanel extends VBox {
     private Label posXValueLabel;
     private Label posYValueLabel;
     private Label orientationValueLabel;
+    private Label cleanedAreaLabel;
 
     // Adjustable parameters
     private Spinner<Double> batteryDrainSpinner;
@@ -109,6 +110,9 @@ public class ParametersPanel extends VBox {
         orientationValueLabel = createValueLabel("0°");
         addParameterRow(grid, 4, "Orientation", orientationValueLabel, null);
 
+        cleanedAreaLabel = createValueLabel("0°");
+        addParameterRow(grid, 5, "Area cleaned ", cleanedAreaLabel, null);
+
         card.getChildren().addAll(cardTitle, grid);
         return card;
     }
@@ -141,8 +145,8 @@ public class ParametersPanel extends VBox {
         buttonRow1.setAlignment(Pos.CENTER);
 
         speed1xButton = createSpeedButton("1x", 1.0);
-        speed2xButton = createSpeedButton("2x", 2.0);
-        speed10xButton = createSpeedButton("10x", 10.0);
+        speed2xButton = createSpeedButton("5x", 5.0);
+        speed10xButton = createSpeedButton("50x", 50.0);
 
         speed1xButton.setSelected(true); // Default selection
 
@@ -203,7 +207,7 @@ public class ParametersPanel extends VBox {
                 "Choose how the vacuum moves during simulation");
 
         // Robot speed in ft/s
-        robotSpeedSpinner = new Spinner<>(0.25, 3.00, 1.00, 0.05);
+        robotSpeedSpinner = new Spinner<>(2, 6.00, 2.00, 0.05);
         robotSpeedSpinner.setEditable(true);
         robotSpeedSpinner.valueProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) {
@@ -362,6 +366,11 @@ public class ParametersPanel extends VBox {
         // Speed - NOW HOOKED UP to real speed
         double speed = vacuum.getSpeed();
         speedValueLabel.setText(String.format("%.2f ft/s", speed));
+
+        double areaCleaned = visualizationPane.getCleanedArea();
+        double coveragePercent =
+                (areaCleaned / visualizationPane.getHouse().getCleanableArea()) * 100;
+        cleanedAreaLabel.setText(String.format("%.1f ft² (%.1f%%)", areaCleaned, coveragePercent));
     }
 
     public int getStartBattery() {

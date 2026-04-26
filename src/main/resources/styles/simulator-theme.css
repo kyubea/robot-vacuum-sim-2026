@@ -118,15 +118,19 @@
 }
 
 .house-scroll-pane>.viewport {
-    -fx-background-color: #eef3f6;
+    -fx-background-color: #fdfdfd;
 }
 
 .house-scroll-pane .corner {
-    -fx-background-color: #eef3f6;
+    -fx-background-color: #fdfdfd;
+}
+
+.canvas-host {
+    -fx-background-color: #fdfdfd;
 }
 
 .house-visualization-pane {
-    -fx-background-color: radial-gradient(center 50% 40%, radius 80%, #edf2f4 0%, #e2e8ec 100%);
+    -fx-background-color: #fdfdfd;
 }
 
 .info-panel {
@@ -329,15 +333,19 @@
 }
 
 .app-root.dark-mode .house-scroll-pane>.viewport {
-    -fx-background-color: #141c24;
+    -fx-background-color: #1e2c38;
 }
 
 .app-root.dark-mode .house-scroll-pane .corner {
-    -fx-background-color: #141c24;
+    -fx-background-color: #1e2c38;
+}
+
+.app-root.dark-mode .canvas-host {
+    -fx-background-color: #1e2c38;
 }
 
 .app-root.dark-mode .house-visualization-pane {
-    -fx-background-color: radial-gradient(center 50% 40%, radius 80%, #1b2a38 0%, #141e28 100%);
+    -fx-background-color: #1e2c38;
 }
 
 .app-root.dark-mode .info-panel,

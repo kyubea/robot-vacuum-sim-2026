@@ -170,7 +170,7 @@ public class Vacuum {
         this.orientation = this.orientation % 360;
     }
 
-    public void update(double deltaTime, double offsetX, double offsetY, double screenScale) {
+    public void update(double deltaTime) {
         // Drain battery and clamp to [0, 100]
         this.battery -= batteryDrainRate * deltaTime;
         this.battery = Math.max(0, Math.min(100, this.battery));
@@ -204,7 +204,7 @@ public class Vacuum {
 
             }
 
-            boolean collided = testCollision(rollbackX, rollbackY, offsetX, offsetY, screenScale);
+            boolean collided = testCollision(rollbackX, rollbackY);
             double movedDistance = Math.hypot(x - rollbackX, y - rollbackY);
 
             if ((collided || movedDistance < 0.01) && this.lastSpeed > 0.05) {
@@ -408,8 +408,7 @@ public class Vacuum {
     /**
      * Improved collision detection with continuous collision checking for high-speed movement
      */
-    private boolean testCollision(double rollbackX, double rollbackY, double offsetX,
-            double offsetY, double screenScale) {
+    private boolean testCollision(double rollbackX, double rollbackY) {
         // Check along the full travel path in world space so zoom/offset never affect collision.
         double distance = Math.hypot(x - rollbackX, y - rollbackY);
         int substeps = Math.max(1, (int) Math.ceil(distance / 0.10));
@@ -526,6 +525,7 @@ public class Vacuum {
 
     public void setBatteryDrainRate(double drainRate) {
         this.batteryDrainRate = Math.max(0, drainRate); // Ensure non-negative
+        System.out.println(batteryDrainRate);
     }
 
     public double getBatteryDrainRate() {
