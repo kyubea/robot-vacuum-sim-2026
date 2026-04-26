@@ -39,7 +39,8 @@ public class HouseVisualizationPane extends Pane {
     private static final Color DOOR_COLOR = Color.web("#d96b1d");
     private static final double GEOMETRY_EPSILON = 0.01;
     private static final double GRID_SNAP = 1.0;
-    private static final double CANVAS_PADDING = 100.0;
+    private static final double CANVAS_PADDING = 32.0;
+    private static final double FLOOR_TEXTURE_TILE_FEET = 2.0;
 
     // Dark-mode colour alternates
     private static final Color DARK_WALL_COLOR = Color.web("#8faabc");
@@ -294,18 +295,21 @@ public class HouseVisualizationPane extends Pane {
             maxRoomY = Math.max(maxRoomY, room.getY() + room.getHeight());
         }
 
-        // Shift the canvas origin so rooms at negative coords remain visible
-        offsetX = CANVAS_PADDING - minRoomX * scale;
-        offsetY = CANVAS_PADDING - minRoomY * scale;
-
         double planWidth = (maxRoomX - minRoomX) * scale;
         double planHeight = (maxRoomY - minRoomY) * scale;
+        double canvasWidth = planWidth + CANVAS_PADDING * 2;
+        double canvasHeight = planHeight + CANVAS_PADDING * 2;
 
-        this.setPrefSize(planWidth + CANVAS_PADDING * 2 + 200,
-                planHeight + CANVAS_PADDING * 2 + 200);
+        this.setPrefSize(canvasWidth, canvasHeight);
 
-        renderFloorBoundary(planWidth, planHeight);
-        renderGrid(planWidth, planHeight, minRoomX, minRoomY, maxRoomX, maxRoomY);
+        // Keep the current plan centered in the virtual canvas space.
+        double planX = (canvasWidth - planWidth) * 0.5;
+        double planY = (canvasHeight - planHeight) * 0.5;
+        offsetX = planX - minRoomX * scale;
+        offsetY = planY - minRoomY * scale;
+
+        renderCanvasBackground(canvasWidth, canvasHeight);
+        renderGrid();
 
         selectedRoomRect = null;
         selectedObstructionRect = null;
@@ -542,57 +546,48 @@ public class HouseVisualizationPane extends Pane {
         return (int) key;
     }
 
-    private void renderFloorBoundary(double planWidth, double planHeight) {
-        // The plan always starts at (CANVAS_PADDING, CANVAS_PADDING) in pixel space
-        double px = CANVAS_PADDING;
-        double py = CANVAS_PADDING;
-
-        Rectangle frame = new Rectangle(px - 20, py - 20, planWidth + 40, planHeight + 40);
-        frame.setArcWidth(18);
-        frame.setArcHeight(18);
-        frame.setFill(darkMode ? Color.web("#1a2530") : Color.web("#f7f8f9"));
-        frame.setStroke(editMode ? (darkMode ? Color.web("#2f8cc4") : Color.web("#0f7b82"))
-                : (darkMode ? Color.web("#2c3e4a") : Color.web("#c3ced4")));
-        frame.setStrokeWidth(editMode ? 2.8 : 1.6);
-        frame.setMouseTransparent(true);
-
-        Rectangle workSurface = new Rectangle(px, py, planWidth, planHeight);
-        workSurface.setFill(darkMode ? Color.web("#1e2c38") : Color.web("#fdfdfd"));
-        workSurface.setStroke(editMode ? (darkMode ? Color.web("#266d98") : Color.web("#6abdc3"))
-                : (darkMode ? Color.web("#2c3e4a") : Color.web("#d8dfe3")));
-        workSurface.setStrokeWidth(editMode ? 2.0 : 1.2);
-        workSurface.setMouseTransparent(true);
-
-        this.getChildren().addAll(frame, workSurface);
+    private void renderCanvasBackground(double canvasWidth, double canvasHeight) {
+        Rectangle background = new Rectangle(0, 0, canvasWidth, canvasHeight);
+        background.setFill(darkMode ? Color.web("#1e2c38") : Color.web("#fdfdfd"));
+        background.setStroke(Color.TRANSPARENT);
+        background.setMouseTransparent(true);
+        this.getChildren().add(background);
     }
 
-    private void renderGrid(double planWidth, double planHeight, double minX, double minY,
-            double maxX, double maxY) {
-        Color gridColor = editMode ? (darkMode ? Color.web("#2e7cae") : Color.web("#9dcfd3"))
-                : (darkMode ? Color.web("#2a3d4c") : Color.web("#d4dee4"));
-        double planPx = CANVAS_PADDING;
-        double planPy = CANVAS_PADDING;
-
-        long firstGx = (long) Math.ceil(minX);
-        long lastGx = (long) Math.floor(maxX);
-        for (long gx = firstGx; gx <= lastGx; gx++) {
-            double px = offsetX + gx * scale;
-            Line line = new Line(px, planPy, px, planPy + planHeight);
-            line.setStroke(gridColor);
-            line.setStrokeWidth(0.5);
-            line.setMouseTransparent(true);
-            this.getChildren().add(line);
+    private void renderGrid() {
+        if (house == null || house.getRooms().isEmpty()) {
+            return;
         }
 
-        long firstGy = (long) Math.ceil(minY);
-        long lastGy = (long) Math.floor(maxY);
-        for (long gy = firstGy; gy <= lastGy; gy++) {
-            double py = offsetY + gy * scale;
-            Line line = new Line(planPx, py, planPx + planWidth, py);
-            line.setStroke(gridColor);
-            line.setStrokeWidth(0.5);
-            line.setMouseTransparent(true);
-            this.getChildren().add(line);
+        Color gridColor = editMode ? (darkMode ? Color.web("#2e7cae") : Color.web("#9dcfd3"))
+                : (darkMode ? Color.web("#2a3d4c") : Color.web("#d4dee4"));
+
+        for (Room room : house.getRooms()) {
+            long firstGx = (long) Math.ceil(room.getX());
+            long lastGx = (long) Math.floor(room.getMaxX());
+            double top = offsetY + room.getY() * scale;
+            double bottom = offsetY + room.getMaxY() * scale;
+            for (long gx = firstGx; gx <= lastGx; gx++) {
+                double px = offsetX + gx * scale;
+                Line line = new Line(px, top, px, bottom);
+                line.setStroke(gridColor);
+                line.setStrokeWidth(0.5);
+                line.setMouseTransparent(true);
+                this.getChildren().add(line);
+            }
+
+            long firstGy = (long) Math.ceil(room.getY());
+            long lastGy = (long) Math.floor(room.getMaxY());
+            double left = offsetX + room.getX() * scale;
+            double right = offsetX + room.getMaxX() * scale;
+            for (long gy = firstGy; gy <= lastGy; gy++) {
+                double py = offsetY + gy * scale;
+                Line line = new Line(left, py, right, py);
+                line.setStroke(gridColor);
+                line.setStrokeWidth(0.5);
+                line.setMouseTransparent(true);
+                this.getChildren().add(line);
+            }
         }
     }
 
@@ -615,7 +610,8 @@ public class HouseVisualizationPane extends Pane {
         } catch (IllegalArgumentException ex) {
             floorType = FlooringTypes.HARDWOOD;
         }
-        return new ImagePattern(floorType.getFloor(), 0, 0, 64, 64, false);
+        double tilePixels = Math.max(4.0, FLOOR_TEXTURE_TILE_FEET * scale);
+        return new ImagePattern(floorType.getFloor(), 0, 0, tilePixels, tilePixels, false);
     }
 
     private void renderRooms() {

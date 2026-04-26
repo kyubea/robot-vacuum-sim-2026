@@ -14,6 +14,7 @@ import javafx.animation.ParallelTransition;
 import javafx.animation.Timeline;
 import javafx.animation.TranslateTransition;
 import javafx.application.Application;
+import javafx.beans.binding.Bindings;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -51,6 +52,7 @@ public class VacuumSimulatorApp extends Application {
     private static final int WINDOW_HEIGHT = 800;
 
     private HouseVisualizationPane visualizationPane;
+    private StackPane canvasHost;
     private ScrollPane scrollPane;
     private StackPane centerShell;
     private House house;
@@ -144,17 +146,37 @@ public class VacuumSimulatorApp extends Application {
 
         // Center: scrollable, pannable visualization
         visualizationPane = new HouseVisualizationPane();
+        visualizationPane.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        visualizationPane.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
         visualizationPane.setVacuum(vacuum);
         visualizationPane.setStatusMessageHandler(this::updateStatus);
         visualizationPane.setHouseChangedHandler(this::handleHouseChanged);
         visualizationPane.setHouse(house);
         simTimer = new simulationTimer(vacuum, visualizationPane);
 
-        scrollPane = new ScrollPane(visualizationPane);
+        canvasHost = new StackPane(visualizationPane);
+        canvasHost.getStyleClass().add("canvas-host");
+        canvasHost.setAlignment(Pos.CENTER);
+
+        scrollPane = new ScrollPane(canvasHost);
         scrollPane.setPannable(true); // Enable panning by dragging
         scrollPane.setFitToWidth(false);
         scrollPane.setFitToHeight(false);
         scrollPane.getStyleClass().add("house-scroll-pane");
+        canvasHost.prefWidthProperty().bind(Bindings.createDoubleBinding(
+                () -> Math.max(scrollPane.getViewportBounds().getWidth(),
+                        visualizationPane.getBoundsInLocal().getWidth()),
+                scrollPane.viewportBoundsProperty(), visualizationPane.boundsInLocalProperty()));
+        canvasHost.prefHeightProperty().bind(Bindings.createDoubleBinding(
+                () -> Math.max(scrollPane.getViewportBounds().getHeight(),
+                        visualizationPane.getBoundsInLocal().getHeight()),
+                scrollPane.viewportBoundsProperty(), visualizationPane.boundsInLocalProperty()));
+        canvasHost.minWidthProperty()
+                .bind(Bindings.createDoubleBinding(() -> scrollPane.getViewportBounds().getWidth(),
+                        scrollPane.viewportBoundsProperty()));
+        canvasHost.minHeightProperty()
+                .bind(Bindings.createDoubleBinding(() -> scrollPane.getViewportBounds().getHeight(),
+                        scrollPane.viewportBoundsProperty()));
 
         // Add zoom functionality with mouse wheel
         scrollPane.addEventFilter(ScrollEvent.SCROLL, event -> {
@@ -162,13 +184,7 @@ public class VacuumSimulatorApp extends Application {
                 event.consume();
                 double deltaY = event.getDeltaY();
                 double scaleFactor = (deltaY > 0) ? 1.1 : 0.9;
-
-                double newScale = visualizationPane.getScale() * scaleFactor;
-                // Clamp zoom between 2x and 50x
-                newScale = Math.max(2.0, Math.min(50.0, newScale));
-
-                visualizationPane.setScale(newScale);
-                updateZoomLabel();
+                zoomByFactorCentered(scaleFactor);
             }
         });
 
@@ -358,7 +374,7 @@ public class VacuumSimulatorApp extends Application {
         Button resetZoomButton = new Button("100%");
         resetZoomButton.getStyleClass().add("strip-button");
         resetZoomButton.setOnAction(e -> {
-            visualizationPane.setScale(10.0);
+            zoomToScaleCentered(10.0);
             updateZoomLabel();
             updateStatus("Zoom reset to 100%");
         });
@@ -729,7 +745,7 @@ public class VacuumSimulatorApp extends Application {
         zoomInItem.setOnAction(e -> zoom(1.2));
         zoomOutItem.setOnAction(e -> zoom(0.8));
         resetZoomItem.setOnAction(e -> {
-            visualizationPane.setScale(10.0);
+            zoomToScaleCentered(10.0);
             updateZoomLabel();
             updateStatus("Zoom reset to 100%");
         });
@@ -805,11 +821,68 @@ public class VacuumSimulatorApp extends Application {
      * Zoom in or out by a factor
      */
     private void zoom(double factor) {
-        double newScale = visualizationPane.getScale() * factor;
-        newScale = Math.max(2.0, Math.min(50.0, newScale));
-        visualizationPane.setScale(newScale);
+        zoomByFactorCentered(factor);
+        double newScale = visualizationPane.getScale();
         updateZoomLabel();
         updateStatus(String.format("Zoom %.0f%%", (newScale / 10.0) * 100));
+    }
+
+    private void zoomByFactorCentered(double factor) {
+        double oldScale = visualizationPane.getScale();
+        double newScale = Math.max(2.0, Math.min(50.0, oldScale * factor));
+        zoomToScaleCentered(newScale);
+    }
+
+    private void zoomToScaleCentered(double newScale) {
+        if (scrollPane == null || visualizationPane == null || canvasHost == null) {
+            return;
+        }
+
+        double oldScale = visualizationPane.getScale();
+        if (Math.abs(newScale - oldScale) < 1e-6) {
+            return;
+        }
+
+        double viewportWidth = scrollPane.getViewportBounds().getWidth();
+        double viewportHeight = scrollPane.getViewportBounds().getHeight();
+        double oldContentWidth = canvasHost.getLayoutBounds().getWidth();
+        double oldContentHeight = canvasHost.getLayoutBounds().getHeight();
+
+        double oldMaxLeft = Math.max(0.0, oldContentWidth - viewportWidth);
+        double oldMaxTop = Math.max(0.0, oldContentHeight - viewportHeight);
+        double oldLeft = oldMaxLeft > 0 ? scrollPane.getHvalue() * oldMaxLeft : 0.0;
+        double oldTop = oldMaxTop > 0 ? scrollPane.getVvalue() * oldMaxTop : 0.0;
+
+        // Keep the same model point at the viewport center through the zoom transition.
+        double centerContentX = oldLeft + viewportWidth * 0.5;
+        double centerContentY = oldTop + viewportHeight * 0.5;
+        double centerModelX =
+                (centerContentX - visualizationPane.getLayoutX() - visualizationPane.getOffsetX())
+                        / oldScale;
+        double centerModelY =
+                (centerContentY - visualizationPane.getLayoutY() - visualizationPane.getOffsetY())
+                        / oldScale;
+
+        visualizationPane.setScale(newScale);
+        scrollPane.applyCss();
+        scrollPane.layout();
+        canvasHost.applyCss();
+        canvasHost.layout();
+
+        double newContentWidth = canvasHost.getLayoutBounds().getWidth();
+        double newContentHeight = canvasHost.getLayoutBounds().getHeight();
+        double newCenterX = visualizationPane.getLayoutX() + visualizationPane.getOffsetX()
+                + centerModelX * newScale;
+        double newCenterY = visualizationPane.getLayoutY() + visualizationPane.getOffsetY()
+                + centerModelY * newScale;
+
+        double newMaxLeft = Math.max(0.0, newContentWidth - viewportWidth);
+        double newMaxTop = Math.max(0.0, newContentHeight - viewportHeight);
+        double newLeft = Math.max(0.0, Math.min(newMaxLeft, newCenterX - viewportWidth * 0.5));
+        double newTop = Math.max(0.0, Math.min(newMaxTop, newCenterY - viewportHeight * 0.5));
+
+        scrollPane.setHvalue(newMaxLeft > 0 ? newLeft / newMaxLeft : 0.0);
+        scrollPane.setVvalue(newMaxTop > 0 ? newTop / newMaxTop : 0.0);
     }
 
     /**
