@@ -433,7 +433,7 @@ public class ParametersPanel extends VBox {
         double realElapsed = simTimer.getRealElapsedSeconds();
         double simulationElapsed = simTimer.getSimulationElapsedSeconds();
         elapsedTimeValueLabel.setText(String.format("Real: %s\nSim: %s",
-            formatElapsedTime(realElapsed), formatElapsedTime(simulationElapsed)));
+                formatElapsedTime(realElapsed), formatElapsedTime(simulationElapsed)));
 
         double areaCleaned = visualizationPane.getCleanedArea();
         double cleanableArea = visualizationPane.getComputedCleanableArea();
