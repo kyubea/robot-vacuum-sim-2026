@@ -1133,7 +1133,6 @@ public class VacuumSimulatorApp extends Application {
         VBox algorithmBox = new VBox(6);
         algorithmBox.setFillWidth(true);
         CheckBox selectAllAlgorithms = new CheckBox("Select all algorithms");
-        selectAllAlgorithms.setAllowIndeterminate(true);
         selectAllAlgorithms.getStyleClass().add("metric-value");
 
         Map<Vacuum.MoveMode, CheckBox> algorithmChecks = new EnumMap<>(Vacuum.MoveMode.class);
