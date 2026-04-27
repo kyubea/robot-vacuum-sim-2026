@@ -489,7 +489,6 @@ public class Vacuum {
                 zigZagPhase = ZigZagPhase.SWEEP;
                 break;
         }
-
     }
 
     private void alg3(double deltaTime) {
