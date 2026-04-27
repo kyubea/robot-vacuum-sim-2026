@@ -30,6 +30,8 @@ public class simulationTimer {
             public void handle(long currentTime) {
                 if (prevTime > 0) {
                     double deltaTime = (currentTime - prevTime) / 1_000_000_000.0;
+                    if (deltaTime < (1.0 / 60.0))
+                        return;
                     deltaTime *= timeMultiplier; // Apply speed multiplier
                     // Bound catch-up work to prevent frame-time spirals under heavy load.
                     // deltaTime = Math.min(deltaTime, 0.30);
