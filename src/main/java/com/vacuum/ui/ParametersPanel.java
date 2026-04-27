@@ -110,7 +110,7 @@ public class ParametersPanel extends VBox {
         orientationValueLabel = createValueLabel("0°");
         addParameterRow(grid, 4, "Orientation", orientationValueLabel, null);
 
-        elapsedTimeValueLabel = createValueLabel("00:00");
+        elapsedTimeValueLabel = createValueLabel("Real: 00:00\nSim: 00:00");
         addParameterRow(grid, 5, "Elapsed", elapsedTimeValueLabel, null);
 
         cleanedAreaLabel = createValueLabel("0.0 m² (0.0%)");
@@ -430,7 +430,10 @@ public class ParametersPanel extends VBox {
         double speedMetersPerSecond = feetPerSecondToMetersPerSecond(vacuum.getSpeed());
         speedValueLabel.setText(String.format("%.2f m/s", speedMetersPerSecond));
 
-        elapsedTimeValueLabel.setText(formatElapsedTime(simTimer.getElapsedSeconds()));
+        double realElapsed = simTimer.getRealElapsedSeconds();
+        double simulationElapsed = simTimer.getSimulationElapsedSeconds();
+        elapsedTimeValueLabel.setText(String.format("Real: %s\nSim: %s",
+            formatElapsedTime(realElapsed), formatElapsedTime(simulationElapsed)));
 
         double areaCleaned = visualizationPane.getCleanedArea();
         double cleanableArea = visualizationPane.getComputedCleanableArea();
