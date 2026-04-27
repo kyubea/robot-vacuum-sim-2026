@@ -428,9 +428,10 @@ public class House {
             _generate(targetNumRooms, minTotalArea, maxTotalArea);
 
             List<String> errors = validate();
-            if (errors.isEmpty() && rooms.size() == targetNumRooms)
-                break;
-
+            if (errors.isEmpty() && rooms.size() == targetNumRooms){
+                break;                
+            }
+            /*
             System.err.println("House generation produced an invalid result.");
             System.err.println("Please capture the following information and report!");
             System.err.printf(
@@ -442,7 +443,7 @@ public class House {
                 System.err.println(r);
             for (Door d : doors)
                 System.err.println(d);
-            System.err.println("Generation will now retry...");
+            System.err.println("Generation will now retry...");*/
         }
 
         // Success! Normalize the floor plan.
