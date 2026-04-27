@@ -97,7 +97,7 @@ public abstract class Obstruction {
 
     @Override
     public String toString() {
-        return String.format("%s[id=%s, pos=(%.1f,%.1f), size=%.1fx%.1f, area=%.1f ft²]",
+        return String.format("%s[id=%s, pos=(%.1f,%.1f), size=%.1fx%.1f, area=%.1f m²]",
                 getClass().getSimpleName(), id.substring(0, 8), x, y, width, height, getArea());
     }
 }

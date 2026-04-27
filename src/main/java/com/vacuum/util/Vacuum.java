@@ -77,20 +77,23 @@ public class Vacuum {
     private static final double MAX_MOVE_SPEED_FT_PER_SEC = 3.0;
 
     // Zig-zag variables
-    private double laneAdvance = 0.9;
+    private static final double ZIGZAG_LANEADVANCE = 0.75;
+    private static final double ZIGZAG_CARDINAL_CHANGE_PROB = 0.50;
     private double moveSpeedFeetPerSec = DEFAULT_MOVE_SPEED_FT_PER_SEC;
     private ZigZagPhase zigZagPhase = ZigZagPhase.SWEEP;
     private double zigZagTurnTarget = 0;
     private double zigZagLaneStartX = 0;
     private double zigZagLaneStartY = 0;
-    private double zigZagSweepHeading = 0;
+    private int zigZagVerticalDirection = 1;
     private int zigZagLaneDirection = 1;
+    private boolean zigZagEastWest = true;
 
     // Spiral variables
     private double spiralRadius = 0.75;
 
     // Wall-follow (straight mode) variables
     private double wallFollowTargetHeading = 0;
+    private int wallFollowCreepCount = 0;
 
     // Spot-spiral variables
     private double spotSpiralTargetHeading = 0;
@@ -107,6 +110,10 @@ public class Vacuum {
     private double stuckTimeSeconds = 0;
     private double recoveryTargetHeading = 0;
     private boolean recoveringFromStuck = false;
+    private double escapeDriveTimeSeconds = 0;
+    private double noProgressTimeSeconds = 0;
+    private double progressAnchorX = 0;
+    private double progressAnchorY = 0;
 
     public Vacuum(double x, double y) {
         this.x = x;
@@ -136,14 +143,23 @@ public class Vacuum {
         this.spiralRadius = 0.75;
         this.randomDirection = Math.random() * 360;
         this.zigZagPhase = ZigZagPhase.SWEEP;
-        this.zigZagSweepHeading = this.orientation;
+        this.zigZagTurnTarget = 0.0;
         this.zigZagLaneDirection = 1;
+        this.zigZagVerticalDirection = 1;
+        this.zigZagEastWest = true;
+        this.zigZagLaneStartX = this.x;
+        this.zigZagLaneStartY = this.y;
         this.wallFollowTargetHeading = this.orientation;
+        this.wallFollowCreepCount = 0;
         this.spotSpiralTurning = false;
         this.spotSpiralTargetHeading = this.orientation;
         this.stuckTimeSeconds = 0;
         this.recoveringFromStuck = false;
         this.recoveryTargetHeading = this.orientation;
+        this.escapeDriveTimeSeconds = 0;
+        this.noProgressTimeSeconds = 0;
+        this.progressAnchorX = this.x;
+        this.progressAnchorY = this.y;
     }
 
     /*
@@ -183,25 +199,31 @@ public class Vacuum {
                 rotateToward(recoveryTargetHeading, 220.0, deltaTime);
                 if (isAngleClose(orientation, recoveryTargetHeading, 3.0)) {
                     recoveringFromStuck = false;
+                    escapeDriveTimeSeconds = 0.85;
                 }
                 this.lastSpeed = 0;
                 return;
             }
 
-            switch (moveMode) {
-                default:
-                    alg1(deltaTime);
-                    break;
-                case 2:
-                    alg2(deltaTime);
-                    break;
-                case 3:
-                    alg3(deltaTime);
-                    break;
-                case 4:
-                    alg4(deltaTime);
-                    break;
+            if (escapeDriveTimeSeconds > 0) {
+                runEscapeDrive(deltaTime);
+                escapeDriveTimeSeconds = Math.max(0.0, escapeDriveTimeSeconds - deltaTime);
+            } else {
+                switch (moveMode) {
+                    default:
+                        alg1(deltaTime);
+                        break;
+                    case 2:
+                        alg2(deltaTime);
+                        break;
+                    case 3:
+                        alg3(deltaTime);
+                        break;
+                    case 4:
+                        alg4(deltaTime);
+                        break;
 
+                }
             }
 
             boolean collided = testCollision(rollbackX, rollbackY);
@@ -213,15 +235,78 @@ public class Vacuum {
                 stuckTimeSeconds = Math.max(0.0, stuckTimeSeconds - deltaTime * 2.0);
             }
 
-            if (stuckTimeSeconds > 1.0) {
-                recoveringFromStuck = true;
-                recoveryTargetHeading = normalizeAngle(orientation + 70.0 + Math.random() * 80.0);
-                stuckTimeSeconds = 0;
+            double distanceFromAnchor = Math.hypot(x - progressAnchorX, y - progressAnchorY);
+            if (distanceFromAnchor > 0.20) {
+                progressAnchorX = x;
+                progressAnchorY = y;
+                noProgressTimeSeconds = 0;
+            } else {
+                noProgressTimeSeconds += deltaTime;
+            }
+
+            if (stuckTimeSeconds > 1.0 || noProgressTimeSeconds > 2.4) {
+                triggerRecovery();
             }
         } else {
             this.lastSpeed = 0;
             System.out.println("Battery has run out");
         }
+    }
+
+    private void runEscapeDrive(double deltaTime) {
+        double escapeSpeed = Math.max(0.45, moveSpeedFeetPerSec * 0.8);
+
+        if (!isObstacleNear(orientation, VACUUM_SIZE * 0.45)) {
+            forward(escapeSpeed, deltaTime);
+            return;
+        }
+
+        double reverseDistance = Math.max(0.10, escapeSpeed * deltaTime * 0.9);
+        double radians = Math.toRadians(orientation);
+        double reverseX = x - Math.cos(radians) * reverseDistance;
+        double reverseY = y - Math.sin(radians) * reverseDistance;
+
+        if (!checkCollisionAt(reverseX, reverseY)) {
+            x = reverseX;
+            y = reverseY;
+            this.lastSpeed = escapeSpeed;
+            return;
+        }
+
+        recoveryTargetHeading = pickBestEscapeHeading();
+        recoveringFromStuck = true;
+        escapeDriveTimeSeconds = 0;
+        this.lastSpeed = 0;
+    }
+
+    private void triggerRecovery() {
+        recoveringFromStuck = true;
+        escapeDriveTimeSeconds = 0;
+        recoveryTargetHeading = pickBestEscapeHeading();
+        stuckTimeSeconds = 0;
+        noProgressTimeSeconds = 0;
+        progressAnchorX = x;
+        progressAnchorY = y;
+    }
+
+    private double pickBestEscapeHeading() {
+        double bestHeading = normalizeAngle(orientation + 120.0);
+        double bestScore = Double.NEGATIVE_INFINITY;
+
+        for (int i = 0; i < 16; i++) {
+            double heading = normalizeAngle(orientation + i * 22.5);
+            double clearance = distanceToObstacle(heading, 3.0);
+            double turnCost = Math.abs(shortestSignedAngleDiff(heading, orientation)) / 180.0;
+            double jitter = Math.random() * 0.15;
+            double score = clearance - (turnCost * 0.25) + jitter;
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestHeading = heading;
+            }
+        }
+
+        return bestHeading;
     }
 
     private void alg1(double deltaTime) {
@@ -231,76 +316,174 @@ public class Vacuum {
 
         double aheadDistance = distanceToObstacle(orientation, 2.0);
         double leftNearDistance = distanceToObstacle(orientation - 90.0, 2.0);
-        double leftFarDistance = distanceToObstacle(orientation - 90.0, 4.0);
+        // double leftFarDistance = distanceToObstacle(orientation - 90.0, 4.0);
+        double desiredLeftGap = 1.1;
 
-        if (aheadDistance < VACUUM_SIZE * 0.7) {
-            // Corner or dead-end: turn right naturally and keep wall-follow continuity.
-            wallFollowTargetHeading = normalizeAngle(orientation + 82.0);
-        } else if (leftFarDistance < 3.95) {
-            // We can sense a wall on the left: steer to hold a soft stand-off distance.
-            double desiredLeftGap = 1.1;
-            double error = desiredLeftGap - leftNearDistance;
-            double steering = Math.max(-16.0, Math.min(16.0, error * 26.0));
-            wallFollowTargetHeading = normalizeAngle(orientation - steering);
-        } else {
-            // No nearby wall: keep current heading instead of turning in circles.
-            wallFollowTargetHeading = orientation;
-        }
+        if (Math.abs(wallFollowTargetHeading - orientation) < 0.01) {
+            // Not completing a rotation (a rotation is not in progress, moving forward)
 
-        rotateToward(wallFollowTargetHeading, turnRate, deltaTime);
-        if (!isObstacleNear(orientation, VACUUM_SIZE * 0.45)) {
-            forward(speed, deltaTime);
+            // Obstruction ahead? Turn right.
+            if (aheadDistance < VACUUM_SIZE * 0.7) {
+                wallFollowTargetHeading = normalizeAngle(orientation + 90.0);
+                // System.out.println("Obstruction turn right");
+            } else if (leftNearDistance <= 1.99 && leftNearDistance > desiredLeftGap) {
+                // We can sense a wall on the left: steer to hold a soft stand-off distance.
+                double error = desiredLeftGap - leftNearDistance;
+                double steering = Math.max(-5.0, Math.min(5.0, error * 2.0));
+                // System.out.printf("Steering left %.2f\n", steering);
+                wallFollowTargetHeading = normalizeAngle(orientation - steering);
+                ++wallFollowCreepCount;
+            }
+
+            if (++wallFollowCreepCount > 1200) {
+                wallFollowTargetHeading = normalizeAngle(orientation + 15.0 + Math.random() * 30.0);
+                wallFollowCreepCount = 0;
+            }
+
+            rotateToward(wallFollowTargetHeading, turnRate, deltaTime);
+            if (!isObstacleNear(orientation, VACUUM_SIZE * 0.45)) {
+                forward(speed, deltaTime);
+            } else {
+                this.lastSpeed = 0;
+            }
         } else {
+            // Completing a rotation (in place, no forward movement)
             this.lastSpeed = 0;
+            rotateToward(wallFollowTargetHeading, turnRate, deltaTime);
         }
     }
 
     private void alg2(double deltaTime) {
         double speed = moveSpeedFeetPerSec;
-        double turnRate = 160.0;
-        double laneHeading = normalizeAngle(zigZagSweepHeading + 90.0 * zigZagLaneDirection);
+        double turnRate = 120.0;
+
+        if (Math.abs(orientation - zigZagTurnTarget) > 0.01) {
+            // Turning. Stays in current state.
+            rotateToward(zigZagTurnTarget, turnRate, deltaTime);
+            return;
+        }
 
         switch (zigZagPhase) {
             case SWEEP:
-                rotateToward(zigZagSweepHeading, turnRate, deltaTime);
-                if (isObstacleNear(orientation, VACUUM_SIZE * 0.70)) {
+                // System.out.printf("SWEEP vert=%d lane=%d or=%.1f E/W=%b\n",
+                // zigZagVerticalDirection,
+                // zigZagLaneDirection, orientation, zigZagEastWest);
+                if (isObstacleNear(orientation, VACUUM_SIZE * 0.45)) {
                     zigZagPhase = ZigZagPhase.TURN_TO_LANE;
-                    zigZagTurnTarget = laneHeading;
-                    break;
+                } else {
+                    if (Math.random() < 0.0001) {
+                        zigZagEastWest = !zigZagEastWest;
+                        if (zigZagEastWest) {
+                            zigZagTurnTarget = zigZagLaneDirection > 0 ? 0.0 : 180.0;
+                        } else {
+                            zigZagTurnTarget = zigZagVerticalDirection > 0 ? 90.0 : 270.0;
+                        }
+                    } else {
+                        // Clear to move forward.
+                        forward(speed, deltaTime);
+                    }
                 }
-                forward(speed, deltaTime);
                 break;
             case TURN_TO_LANE:
-                rotateToward(zigZagTurnTarget, turnRate, deltaTime);
-                if (isAngleClose(orientation, zigZagTurnTarget, 3.0)) {
-                    zigZagPhase = ZigZagPhase.LANE_SHIFT;
+                double turnDirection = zigZagEastWest ? (zigZagVerticalDirection < 0 ? 270.0 : 90.0)
+                        : (zigZagLaneDirection < 0 ? 180.0 : 0);
+                // System.out.printf("TURN TO LANE, current vert=%d lane=%d, turning %.1f,
+                // E/W=%b\n",
+                // zigZagVerticalDirection, zigZagLaneDirection, turnDirection,
+                // zigZagEastWest);
+                zigZagTurnTarget = normalizeAngle(turnDirection);
+                // Vary the lane advance (width) by a small random amount to prevent steady state
+                // conditions (e.g. caused by door alignment).
+                double laneAdvance = ZIGZAG_LANEADVANCE * (0.75 + Math.random() * 3.25);
+                if (zigZagEastWest) {
+                    zigZagLaneStartY = y + (double) zigZagVerticalDirection * laneAdvance;
                     zigZagLaneStartX = x;
+                } else {
+                    zigZagLaneStartX = x + (double) zigZagLaneDirection * laneAdvance;
                     zigZagLaneStartY = y;
                 }
                 this.lastSpeed = 0;
+                zigZagPhase = ZigZagPhase.LANE_SHIFT;
                 break;
             case LANE_SHIFT:
-                if (!isObstacleNear(orientation, VACUUM_SIZE * 0.60)) {
-                    forward(speed * 0.7, deltaTime);
-                }
+                boolean bonk = isObstacleNear(orientation, VACUUM_SIZE * 0.45);
                 double laneDistance = Math.hypot(x - zigZagLaneStartX, y - zigZagLaneStartY);
-                if (laneDistance >= Math.max(0.5, laneAdvance)
-                        || isObstacleNear(orientation, VACUUM_SIZE * 0.60)) {
-                    if (laneDistance < 0.20) {
-                        // Lane shift blocked quickly; swap side to avoid thrashing same corridor.
-                        zigZagLaneDirection *= -1;
+                // System.out.printf(
+                // "LANE_SHIFT at(%.2f, %.2f) lane(%.2f, %.2f) dist=%.2f face=%.1f E/W=%b
+                // bonk=%b\n",
+                // this.x, this.y, zigZagLaneStartX, zigZagLaneStartY, laneDistance,
+                // zigZagTurnTarget, zigZagEastWest, bonk);
+
+                if (bonk && laneDistance >= (ZIGZAG_LANEADVANCE * 0.80)) {
+                    // We barely moved after turning. Reverse vertically.
+                    boolean cardinalChange = Math.random() < ZIGZAG_CARDINAL_CHANGE_PROB;
+                    if (zigZagEastWest) {
+                        // Sweeping east-west. If we've done both bottom to top, switch to
+                        // north-south.
+                        if (cardinalChange) {
+                            // Switch from East-West sweep to North-South sweep
+                            // System.out.printf("Switching to N/S sweep; vert=%d lane=%d
+                            // turn=%.1f\n",
+                            // zigZagVerticalDirection, zigZagLaneDirection, zigZagTurnTarget);
+                            zigZagVerticalDirection = -zigZagVerticalDirection;
+                            zigZagLaneDirection = -zigZagLaneDirection;
+                            zigZagTurnTarget = normalizeAngle(zigZagTurnTarget + 180.0);
+                            zigZagLaneStartX = x;
+                            zigZagLaneStartY = y;
+                            zigZagEastWest = false;
+                            zigZagPhase = ZigZagPhase.TURN_TO_SWEEP;
+                            return;
+                        } else {
+                            // System.out.println("Switching lane direction in E/W sweep\n");
+                            zigZagVerticalDirection = -zigZagVerticalDirection;
+                            zigZagLaneStartY += 2 * ZIGZAG_LANEADVANCE * zigZagVerticalDirection;
+                            zigZagTurnTarget = normalizeAngle(zigZagTurnTarget + 180.0);
+                        }
+                    } else {
+                        // Sweeping north-south. If we're done left-right, switch to east-west.
+                        if (cardinalChange) {
+                            // Switch from North-South sweep to East-West sweep
+                            // System.out.printf("Switching to E/W sweep; vert=%d lane=%d
+                            // turn=%.1f\n",
+                            // zigZagVerticalDirection, zigZagLaneDirection, zigZagTurnTarget);
+                            zigZagLaneDirection = -zigZagLaneDirection;
+                            zigZagVerticalDirection = -zigZagVerticalDirection;
+                            zigZagTurnTarget = normalizeAngle(zigZagTurnTarget + 180.0);
+                            zigZagLaneStartX = x;
+                            zigZagLaneStartY = y;
+                            zigZagEastWest = true;
+                            zigZagPhase = ZigZagPhase.TURN_TO_SWEEP;
+                            return;
+                        } else {
+                            // Switch between north and south sweeping
+                            // System.out.println("Switching lane direction in N/S sweep\n");
+                            zigZagLaneDirection = -zigZagLaneDirection;
+                            zigZagLaneStartX += 2 * ZIGZAG_LANEADVANCE * zigZagLaneDirection;
+                            zigZagTurnTarget = normalizeAngle(zigZagTurnTarget + 180.0);
+                        }
                     }
-                    zigZagSweepHeading = normalizeAngle(zigZagSweepHeading + 180.0);
-                    zigZagTurnTarget = zigZagSweepHeading;
-                    zigZagPhase = ZigZagPhase.TURN_TO_SWEEP;
+                    // stay in LANE_SHIFT state
+                    return;
                 }
+                if (bonk || laneDistance <= (ZIGZAG_LANEADVANCE / 10.0)) {
+                    // Complete turn and begin sweeping.
+                    if (zigZagEastWest) {
+                        zigZagLaneDirection = -zigZagLaneDirection;
+                        zigZagTurnTarget = zigZagLaneDirection > 0 ? 0 : 180.0;
+                    } else {
+                        zigZagVerticalDirection = -zigZagVerticalDirection;
+                        zigZagTurnTarget = zigZagVerticalDirection > 0 ? 90.0 : 270.0;
+                    }
+                    zigZagPhase = ZigZagPhase.TURN_TO_SWEEP;
+                    return;
+                }
+
+                // Advance
+                forward(speed * 0.7, deltaTime);
                 break;
             case TURN_TO_SWEEP:
-                rotateToward(zigZagTurnTarget, turnRate, deltaTime);
-                if (isAngleClose(orientation, zigZagTurnTarget, 3.0)) {
-                    zigZagPhase = ZigZagPhase.SWEEP;
-                }
-                this.lastSpeed = 0;
+                // System.out.printf("TURN_TO_SWEEP %.1f\n", zigZagTurnTarget);
+                zigZagPhase = ZigZagPhase.SWEEP;
                 break;
             default:
                 zigZagPhase = ZigZagPhase.SWEEP;
@@ -317,7 +500,7 @@ public class Vacuum {
 
     private void alg4(double deltaTime) {
         double speed = moveSpeedFeetPerSec;
-        double turnRate = 180.0;
+        double turnRate = 360.0;
 
         if (isObstacleNear(randomDirection, VACUUM_SIZE * 0.65)) {
             randomDirection = normalizeAngle(randomDirection + 120.0 + Math.random() * 80.0);
