@@ -48,7 +48,8 @@ public class ParametersPanel extends VBox {
         this.visualizationPane = visualizationPane;
 
         this.setPadding(new Insets(16));
-        this.setStyle("-fx-border-left: 1px solid #CCCCCC;");
+        this.setStyle("-fx-border-color: transparent transparent transparent #CCCCCC;" +
+                "-fx-border-width: 0 0 0 1;");        
         this.getStyleClass().add("parameters-panel");
         this.setPrefWidth(320);
         this.setMinWidth(280);

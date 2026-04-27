@@ -1723,7 +1723,7 @@ public class VacuumSimulatorApp extends Application {
 
         // House info panel
         VBox infoPanel = createInfoPanel();
-        infoPanel.setStyle("-fx-border-bottom: 1px solid #CCCCCC;");
+        infoPanel.setStyle("-fx-border-color: transparent transparent transparent #CCCCCC;" + "-fx-border-width: 0 0 0 1;");
 
         // Parameters panel
         parametersPanel = new ParametersPanel(vacuum, simTimer, visualizationPane);
