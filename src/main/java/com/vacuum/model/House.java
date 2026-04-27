@@ -245,11 +245,11 @@ public class House {
         // Check total area bounds
         double totalArea = getTotalArea();
         if (totalArea < MIN_TOTAL_AREA) {
-            errors.add(String.format("House area (%.2f ft²) is below minimum (%.2f ft²)", totalArea,
+            errors.add(String.format("House area (%.2f m²) is below minimum (%.2f m²)", totalArea,
                     MIN_TOTAL_AREA));
         }
         if (totalArea > MAX_TOTAL_AREA) {
-            errors.add(String.format("House area (%.2f ft²) exceeds maximum (%.2f ft²)", totalArea,
+            errors.add(String.format("House area (%.2f m²) exceeds maximum (%.2f m²)", totalArea,
                     MAX_TOTAL_AREA));
         }
 
@@ -264,7 +264,7 @@ public class House {
                         room.getId().substring(0, 8)));
             }
             if (room.getArea() < Room.MIN_AREA) {
-                areaErrors.add(String.format("Room %s area (%.2f ft²) is below minimum (%.2f ft²)",
+                areaErrors.add(String.format("Room %s area (%.2f m²) is below minimum (%.2f m²)",
                         room.getId().substring(0, 8), room.getArea(), Room.MIN_AREA));
             }
         }
@@ -404,7 +404,7 @@ public class House {
     @Override
     public String toString() {
         return String.format(
-                "House[rooms=%d, doors=%d, obstructions=%d, area=%.1f ft², cleanable=%.1f ft², covering=%s, valid=%s]",
+                "House[rooms=%d, doors=%d, obstructions=%d, area=%.1f m², cleanable=%.1f m², covering=%s, valid=%s]",
                 rooms.size(), doors.size(), obstructions.size(), getTotalArea(), getCleanableArea(),
                 floorCovering.name(), isValid());
     }

@@ -7,6 +7,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.util.StringConverter;
 
 /**
  * Parameters Panel - embedded in main window, displays and allows adjustment of vacuum simulation
@@ -26,6 +27,9 @@ public class ParametersPanel extends VBox {
     private Label posYValueLabel;
     private Label orientationValueLabel;
     private Label cleanedAreaLabel;
+    private Label elapsedTimeValueLabel;
+    private Label cleanableAreaValueLabel;
+    private Label nonCleanableAreaValueLabel;
 
     // Adjustable parameters
     private Spinner<Double> batteryDrainSpinner;
@@ -48,10 +52,10 @@ public class ParametersPanel extends VBox {
         this.visualizationPane = visualizationPane;
 
         this.setPadding(new Insets(16));
-        this.setStyle("-fx-border-left: 1px solid #CCCCCC;");
         this.getStyleClass().add("parameters-panel");
-        this.setPrefWidth(320);
-        this.setMinWidth(280);
+        this.setPrefWidth(380);
+        this.setMinWidth(340);
+        this.setFillWidth(true);
 
         // Build the panel
         buildPanel();
@@ -80,38 +84,43 @@ public class ParametersPanel extends VBox {
      * Creates the vacuum status card showing battery, position, and speed
      */
     private VBox createVacuumStatusCard() {
-        VBox card = new VBox(10);
+        VBox card = new VBox(8);
         card.getStyleClass().add("info-card");
 
         Label cardTitle = new Label("Vacuum Status");
         cardTitle.getStyleClass().add("card-title");
 
         GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(10);
+        grid.setHgap(12);
+        grid.setVgap(8);
+        grid.getColumnConstraints().addAll(createMetricColumn(), createValueColumn());
 
-        // Vacuum Speed - NOW HOOKED UP to real speed
-        speedValueLabel = createValueLabel("0.0 ft/s");
+        speedValueLabel = createValueLabel("0.0 m/s");
         addParameterRow(grid, 0, "Speed", speedValueLabel, null);
 
-        // Battery Life - HOOKED UP
         batteryValueLabel = createValueLabel("100%");
         addParameterRow(grid, 1, "Battery", batteryValueLabel, null);
 
-        // Position X - HOOKED UP
         posXValueLabel = createValueLabel("0.0");
         addParameterRow(grid, 2, "Position X", posXValueLabel, null);
 
-        // Position Y - HOOKED UP
         posYValueLabel = createValueLabel("0.0");
         addParameterRow(grid, 3, "Position Y", posYValueLabel, null);
 
-        // Orientation - HOOKED UP
         orientationValueLabel = createValueLabel("0°");
         addParameterRow(grid, 4, "Orientation", orientationValueLabel, null);
 
-        cleanedAreaLabel = createValueLabel("0°");
-        addParameterRow(grid, 5, "Area cleaned ", cleanedAreaLabel, null);
+        elapsedTimeValueLabel = createValueLabel("00:00");
+        addParameterRow(grid, 5, "Elapsed", elapsedTimeValueLabel, null);
+
+        cleanedAreaLabel = createValueLabel("0.0 m² (0.0%)");
+        addParameterRow(grid, 6, "Cleaned Area", cleanedAreaLabel, null);
+
+        cleanableAreaValueLabel = createValueLabel("0.0 m²");
+        addParameterRow(grid, 7, "Cleanable Area", cleanableAreaValueLabel, null);
+
+        nonCleanableAreaValueLabel = createValueLabel("0.0 m²");
+        addParameterRow(grid, 8, "Non-cleanable Area", nonCleanableAreaValueLabel, null);
 
         card.getChildren().addAll(cardTitle, grid);
         return card;
@@ -121,7 +130,7 @@ public class ParametersPanel extends VBox {
      * Creates the speed control card with multiplier buttons
      */
     private VBox createSpeedControlCard() {
-        VBox card = new VBox(10);
+        VBox card = new VBox(8);
         card.getStyleClass().add("info-card");
 
         Label cardTitle = new Label("Simulation Speed");
@@ -139,7 +148,7 @@ public class ParametersPanel extends VBox {
         // Speed buttons container
         VBox buttonContainer = new VBox(8);
         Label controlsLabel = new Label("Speed Multipliers");
-        controlsLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 12;");
+        controlsLabel.getStyleClass().add("card-title");
 
         HBox buttonRow1 = new HBox(6);
         buttonRow1.setAlignment(Pos.CENTER);
@@ -162,15 +171,16 @@ public class ParametersPanel extends VBox {
      * Creates a card for adjustable simulation parameters
      */
     private VBox createParametersCard() {
-        VBox card = new VBox(10);
+        VBox card = new VBox(8);
         card.getStyleClass().add("info-card");
 
         Label cardTitle = new Label("Adjustable Parameters");
         cardTitle.getStyleClass().add("card-title");
 
         GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(10);
+        grid.setHgap(12);
+        grid.setVgap(8);
+        grid.getColumnConstraints().addAll(createMetricColumn(), createValueColumn());
 
         // Battery Drain Rate (percent per second)
         batteryDrainSpinner = new Spinner<>(0.001, 0.200, 100.0 / (100.0 * 60.0), 0.001);
@@ -181,6 +191,17 @@ public class ParametersPanel extends VBox {
             }
             notifyParametersChanged();
         });
+        configureSpinnerEditor(batteryDrainSpinner, new StringConverter<Double>() {
+            @Override
+            public String toString(Double value) {
+                return value == null ? "" : String.format("%.3f", value);
+            }
+
+            @Override
+            public Double fromString(String string) {
+                return Double.parseDouble(string.trim());
+            }
+        });
         addParameterRowWithSpinner(grid, 0, "Battery Drain (%/s)", batteryDrainSpinner,
                 "Roomba-like runtime is around 0.01-0.03 %/s depending on mode and load");
 
@@ -190,6 +211,7 @@ public class ParametersPanel extends VBox {
         batteryStartSpinner.valueProperty().addListener((obs, oldVal, newVal) -> {
             notifyParametersChanged();
         });
+        configureSpinnerEditor(batteryStartSpinner, null);
         addParameterRowWithSpinner(grid, 1, "Start Battery (%)", batteryStartSpinner,
                 "Set initial battery level for next simulation");
 
@@ -206,21 +228,32 @@ public class ParametersPanel extends VBox {
         addParameterRowWithComboBox(grid, 2, "Movement Algorithm", movementAlgorithmCombo,
                 "Choose how the vacuum moves during simulation");
 
-        // Robot speed in ft/s
-        robotSpeedSpinner = new Spinner<>(2, 6.00, 2.00, 0.05);
+        robotSpeedSpinner = new Spinner<>(0.08, 0.91, 0.30, 0.02);
         robotSpeedSpinner.setEditable(true);
         robotSpeedSpinner.valueProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) {
-                vacuum.setMoveSpeedFeetPerSec(newVal);
+                vacuum.setMoveSpeedFeetPerSec(metersPerSecondToFeetPerSecond(newVal));
                 notifyParametersChanged();
             }
         });
-        addParameterRowWithSpinner(grid, 3, "Robot Speed (ft/s)", robotSpeedSpinner,
+        configureSpinnerEditor(robotSpeedSpinner, new StringConverter<Double>() {
+            @Override
+            public String toString(Double value) {
+                return value == null ? "" : String.format("%.2f", value);
+            }
+
+            @Override
+            public Double fromString(String string) {
+                return Double.parseDouble(string.trim());
+            }
+        });
+        addParameterRowWithSpinner(grid, 3, "Robot Speed (m/s)", robotSpeedSpinner,
                 "Adjust physical movement speed used by cleaning algorithms");
 
-        Label noteLabel = new Label("Click on the canvas to move the vacuum to a location.");
+        Label noteLabel = new Label(
+                "Tip: click the plan to reposition the vacuum when the simulation is stopped.");
         noteLabel.setWrapText(true);
-        noteLabel.setStyle("-fx-font-size: 11; -fx-text-fill: #666666;");
+        noteLabel.getStyleClass().add("panel-subtitle");
 
         card.getChildren().addAll(cardTitle, grid, new Separator(), noteLabel);
         return card;
@@ -233,6 +266,8 @@ public class ParametersPanel extends VBox {
             Spinner<?> valueControl, String tooltip) {
         Label nameLabel = new Label(label);
         nameLabel.getStyleClass().add("metric-label");
+        nameLabel.setMaxWidth(Double.MAX_VALUE);
+        nameLabel.setWrapText(true);
         GridPane.setHgrow(valueControl, Priority.ALWAYS);
         valueControl.setMaxWidth(Double.MAX_VALUE);
 
@@ -251,6 +286,8 @@ public class ParametersPanel extends VBox {
             ComboBox<?> comboBox, String tooltip) {
         Label nameLabel = new Label(label);
         nameLabel.getStyleClass().add("metric-label");
+        nameLabel.setMaxWidth(Double.MAX_VALUE);
+        nameLabel.setWrapText(true);
         GridPane.setHgrow(comboBox, Priority.ALWAYS);
         comboBox.setMaxWidth(Double.MAX_VALUE);
 
@@ -272,6 +309,8 @@ public class ParametersPanel extends VBox {
             String tooltip) {
         Label nameLabel = new Label(label);
         nameLabel.getStyleClass().add("metric-label");
+        nameLabel.setMaxWidth(Double.MAX_VALUE);
+        nameLabel.setWrapText(true);
         GridPane.setHgrow(valueLabel, Priority.ALWAYS);
 
         if (tooltip != null) {
@@ -285,12 +324,40 @@ public class ParametersPanel extends VBox {
         grid.add(valueLabel, 1, row);
     }
 
+    private ColumnConstraints createMetricColumn() {
+        ColumnConstraints constraints = new ColumnConstraints();
+        constraints.setMinWidth(150);
+        constraints.setPrefWidth(170);
+        return constraints;
+    }
+
+    private ColumnConstraints createValueColumn() {
+        ColumnConstraints constraints = new ColumnConstraints();
+        constraints.setHgrow(Priority.ALWAYS);
+        constraints.setFillWidth(true);
+        constraints.setMinWidth(140);
+        return constraints;
+    }
+
+    private <T> void configureSpinnerEditor(Spinner<T> spinner, StringConverter<T> converter) {
+        if (spinner.getValueFactory() != null && converter != null) {
+            spinner.getValueFactory().setConverter(converter);
+        }
+        spinner.focusedProperty().addListener((obs, wasFocused, isFocused) -> {
+            if (!isFocused) {
+                spinner.increment(0);
+            }
+        });
+    }
+
     /**
      * Creates a value label with appropriate styling
      */
     private Label createValueLabel(String text) {
         Label value = new Label(text);
         value.getStyleClass().add("metric-value");
+        value.setWrapText(true);
+        value.setMaxWidth(Double.MAX_VALUE);
         return value;
     }
 
@@ -349,28 +416,29 @@ public class ParametersPanel extends VBox {
      * Updates all displayed values from vacuum/simulation data
      */
     private void updateValues() {
-        // Battery - HOOKED UP
         double battery = vacuum.getBattery();
         batteryValueLabel.setText(String.format("%.1f%%", battery));
 
-        // Position - HOOKED UP
         double x = vacuum.getX();
         double y = vacuum.getY();
-        posXValueLabel.setText(String.format("%.2f", x));
-        posYValueLabel.setText(String.format("%.2f", y));
+        posXValueLabel.setText(String.format("%.2f m", x));
+        posYValueLabel.setText(String.format("%.2f m", y));
 
-        // Orientation - HOOKED UP
         double orientation = vacuum.getOrientation();
         orientationValueLabel.setText(String.format("%.1f°", orientation));
 
-        // Speed - NOW HOOKED UP to real speed
-        double speed = vacuum.getSpeed();
-        speedValueLabel.setText(String.format("%.2f ft/s", speed));
+        double speedMetersPerSecond = feetPerSecondToMetersPerSecond(vacuum.getSpeed());
+        speedValueLabel.setText(String.format("%.2f m/s", speedMetersPerSecond));
+
+        elapsedTimeValueLabel.setText(formatElapsedTime(simTimer.getElapsedSeconds()));
 
         double areaCleaned = visualizationPane.getCleanedArea();
-        double coveragePercent =
-                (areaCleaned / visualizationPane.getHouse().getCleanableArea()) * 100;
-        cleanedAreaLabel.setText(String.format("%.1f ft² (%.1f%%)", areaCleaned, coveragePercent));
+        double cleanableArea = visualizationPane.getComputedCleanableArea();
+        double coveragePercent = cleanableArea > 0 ? (areaCleaned / cleanableArea) * 100 : 0.0;
+        cleanedAreaLabel.setText(String.format("%.1f m² (%.1f%%)", areaCleaned, coveragePercent));
+        cleanableAreaValueLabel.setText(String.format("%.1f m²", cleanableArea));
+        nonCleanableAreaValueLabel
+                .setText(String.format("%.1f m²", visualizationPane.getNonCleanableArea()));
     }
 
     public int getStartBattery() {
@@ -391,7 +459,7 @@ public class ParametersPanel extends VBox {
     }
 
     public double getRobotSpeedFeetPerSec() {
-        return robotSpeedSpinner.getValue();
+        return metersPerSecondToFeetPerSecond(robotSpeedSpinner.getValue());
     }
 
     public void setBatteryDrainRatePercent(double percent) {
@@ -416,9 +484,29 @@ public class ParametersPanel extends VBox {
 
     public void setRobotSpeedFeetPerSec(double speedFeetPerSec) {
         double clamped = Math.max(0.25, Math.min(3.0, speedFeetPerSec));
-        robotSpeedSpinner.getValueFactory().setValue(clamped);
+        robotSpeedSpinner.getValueFactory().setValue(feetPerSecondToMetersPerSecond(clamped));
         vacuum.setMoveSpeedFeetPerSec(clamped);
         notifyParametersChanged();
+    }
+
+    private double feetPerSecondToMetersPerSecond(double feetPerSecond) {
+        return feetPerSecond * 0.3048;
+    }
+
+    private double metersPerSecondToFeetPerSecond(double metersPerSecond) {
+        return metersPerSecond / 0.3048;
+    }
+
+    private String formatElapsedTime(double elapsedSeconds) {
+        int totalSeconds = (int) Math.floor(Math.max(0.0, elapsedSeconds));
+        int minutes = totalSeconds / 60;
+        int seconds = totalSeconds % 60;
+        int hours = minutes / 60;
+
+        if (hours > 0) {
+            return String.format("%02d:%02d:%02d", hours, minutes % 60, seconds);
+        }
+        return String.format("%02d:%02d", minutes, seconds);
     }
 
     public void setSpeedMultiplier(double multiplier) {

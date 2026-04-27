@@ -6,7 +6,10 @@ import com.vacuum.model.House;
 import com.vacuum.model.Obstruction;
 import com.vacuum.model.PassUnderObstruction;
 import com.vacuum.model.Room;
+import javafx.scene.shape.Rectangle;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -22,6 +25,7 @@ public final class BatchTrialRunner {
     private static final double STEP_SECONDS = 1.0 / 30.0;
     private static final double MAX_SIM_SECONDS = 4.0 * 60.0 * 60.0;
     private static final double CLEANING_RADIUS_RATIO = 0.36;
+    private static final double REACHABILITY_STEP = 0.25;
 
     private BatchTrialRunner() {}
 
@@ -200,7 +204,7 @@ public final class BatchTrialRunner {
         vacuum.addObstructions(house.getObstructions());
         vacuum.reset(config.startBatteryPercent, mode.getCode());
 
-        CleaningCoverageTracker coverageTracker = new CleaningCoverageTracker(house);
+        CleaningCoverageTracker coverageTracker = new CleaningCoverageTracker(house, vacuum);
 
         double elapsedSeconds = 0.0;
         while (elapsedSeconds < MAX_SIM_SECONDS && vacuum.getBattery() > 0.0
@@ -333,16 +337,21 @@ public final class BatchTrialRunner {
         private final Set<Long> cleanableTiles = new HashSet<>();
         private final Map<Long, Integer> tilePassRequirements = new HashMap<>();
         private final Map<Long, Integer> tilePassCounts = new HashMap<>();
+        private final Set<Long> tilesTouchedLastUpdate = new HashSet<>();
         private final double cleaningEfficiencyPerPass;
+        private final House house;
+        private final Vacuum vacuum;
         private double accumulatedCoverageProgress = 0.0;
 
-        private CleaningCoverageTracker(House house) {
+        private CleaningCoverageTracker(House house, Vacuum vacuum) {
+            this.house = house;
+            this.vacuum = vacuum;
             this.cleaningEfficiencyPerPass =
                     Math.max(0.01, Math.min(1.0, house.getFloorCovering().getDefaultEfficiency()));
-            initializeCleanableTiles(house);
+            initializeCleanableTiles();
         }
 
-        private void initializeCleanableTiles(House house) {
+        private void initializeCleanableTiles() {
             if (house == null || house.getRooms().isEmpty()) {
                 return;
             }
@@ -365,32 +374,16 @@ public final class BatchTrialRunner {
             int startGy = (int) Math.floor(minY);
             int endGy = (int) Math.ceil(maxY) - 1;
 
-            List<Obstruction> obstructions = house.getObstructions();
-            for (int gx = startGx; gx <= endGx; gx++) {
-                for (int gy = startGy; gy <= endGy; gy++) {
-                    double centerX = gx + 0.5;
-                    double centerY = gy + 0.5;
-                    if (house.getRoomAt(centerX, centerY) == null) {
-                        continue;
-                    }
+            Set<Long> reachableRobotSamples = computeReachableRobotSamples(minX, maxX, minY, maxY);
+            if (reachableRobotSamples.isEmpty()) {
+                return;
+            }
 
-                    boolean blocked = false;
-                    for (Obstruction obstruction : obstructions) {
-                        if (obstruction.blocksCleanableArea()
-                                && obstruction.contains(centerX, centerY)) {
-                            blocked = true;
-                            break;
-                        }
-                    }
-                    if (blocked) {
-                        continue;
-                    }
-
-                    long tileKey = encodeTileKey(gx, gy);
-                    cleanableTiles.add(tileKey);
-                    tilePassRequirements.put(tileKey, requiredPasses);
-                    tilePassCounts.put(tileKey, 0);
-                }
+            for (long sampleKey : reachableRobotSamples) {
+                double sampleX = decodeSampleX(sampleKey);
+                double sampleY = decodeSampleY(sampleKey);
+                markReachableCleaningTiles(sampleX, sampleY, requiredPasses, startGx, endGx,
+                        startGy, endGy);
             }
         }
 
@@ -407,6 +400,7 @@ public final class BatchTrialRunner {
             int endGx = (int) Math.floor(centerX + cleanRadius);
             int startGy = (int) Math.floor(centerY - cleanRadius);
             int endGy = (int) Math.floor(centerY + cleanRadius);
+            Set<Long> tilesTouchedThisUpdate = new HashSet<>();
 
             for (int gx = startGx; gx <= endGx; gx++) {
                 for (int gy = startGy; gy <= endGy; gy++) {
@@ -418,19 +412,24 @@ public final class BatchTrialRunner {
                     if (!cleanableTiles.contains(tileKey)) {
                         continue;
                     }
+                    tilesTouchedThisUpdate.add(tileKey);
 
                     int required = tilePassRequirements.getOrDefault(tileKey, 1);
                     int currentPasses = tilePassCounts.getOrDefault(tileKey, 0);
-                    if (currentPasses < required) {
+                    if (!tilesTouchedLastUpdate.contains(tileKey) && currentPasses < required) {
                         double oldProgress =
-                                Math.min(1.0, currentPasses * cleaningEfficiencyPerPass);
+                                Math.min(1.0, (double) currentPasses / Math.max(1, required));
                         int newPasses = currentPasses + 1;
-                        double newProgress = Math.min(1.0, newPasses * cleaningEfficiencyPerPass);
+                        double newProgress =
+                                Math.min(1.0, (double) newPasses / Math.max(1, required));
                         tilePassCounts.put(tileKey, newPasses);
                         accumulatedCoverageProgress += (newProgress - oldProgress);
                     }
                 }
             }
+
+            tilesTouchedLastUpdate.clear();
+            tilesTouchedLastUpdate.addAll(tilesTouchedThisUpdate);
         }
 
         private boolean circleIntersectsTile(double cx, double cy, double radius, int tileX,
@@ -439,6 +438,171 @@ public final class BatchTrialRunner {
             double nearestY = Math.max(tileY, Math.min(cy, tileY + 1.0));
             double dx = cx - nearestX;
             double dy = cy - nearestY;
+            return (dx * dx + dy * dy) <= (radius * radius);
+        }
+
+        private Set<Long> computeReachableRobotSamples(double minX, double maxX, double minY,
+                double maxY) {
+            Set<Long> visited = new HashSet<>();
+            if (vacuum == null) {
+                return visited;
+            }
+
+            Deque<Long> frontier = new ArrayDeque<>();
+            long startSampleKey = findReachableStartSample(minX, maxX, minY, maxY);
+            if (startSampleKey == Long.MIN_VALUE) {
+                return visited;
+            }
+
+            frontier.add(startSampleKey);
+            visited.add(startSampleKey);
+
+            int minSx = toSampleIndex(minX - vacuum.getSize());
+            int maxSx = toSampleIndex(maxX);
+            int minSy = toSampleIndex(minY - vacuum.getSize());
+            int maxSy = toSampleIndex(maxY);
+
+            while (!frontier.isEmpty()) {
+                long current = frontier.removeFirst();
+                int sampleX = decodeSampleIndexX(current);
+                int sampleY = decodeSampleIndexY(current);
+
+                enqueueReachableSample(sampleX + 1, sampleY, minSx, maxSx, minSy, maxSy, visited,
+                        frontier);
+                enqueueReachableSample(sampleX - 1, sampleY, minSx, maxSx, minSy, maxSy, visited,
+                        frontier);
+                enqueueReachableSample(sampleX, sampleY + 1, minSx, maxSx, minSy, maxSy, visited,
+                        frontier);
+                enqueueReachableSample(sampleX, sampleY - 1, minSx, maxSx, minSy, maxSy, visited,
+                        frontier);
+            }
+
+            return visited;
+        }
+
+        private void enqueueReachableSample(int sampleX, int sampleY, int minSx, int maxSx,
+                int minSy, int maxSy, Set<Long> visited, Deque<Long> frontier) {
+            if (sampleX < minSx || sampleX > maxSx || sampleY < minSy || sampleY > maxSy) {
+                return;
+            }
+
+            long sampleKey = encodeSampleKey(sampleX, sampleY);
+            if (visited.contains(sampleKey)) {
+                return;
+            }
+
+            double worldX = fromSampleIndex(sampleX);
+            double worldY = fromSampleIndex(sampleY);
+            if (!canRobotOccupy(worldX, worldY)) {
+                return;
+            }
+
+            visited.add(sampleKey);
+            frontier.addLast(sampleKey);
+        }
+
+        private long findReachableStartSample(double minX, double maxX, double minY, double maxY) {
+            long directStart = encodeWorldSample(vacuum.getStartX(), vacuum.getStartY());
+            if (canRobotOccupy(decodeSampleX(directStart), decodeSampleY(directStart))) {
+                return directStart;
+            }
+
+            long currentStart = encodeWorldSample(vacuum.getX(), vacuum.getY());
+            if (canRobotOccupy(decodeSampleX(currentStart), decodeSampleY(currentStart))) {
+                return currentStart;
+            }
+
+            double searchStartX = Math.max(minX - vacuum.getSize(), vacuum.getStartX() - 1.0);
+            double searchEndX = Math.min(maxX, vacuum.getStartX() + 1.0);
+            double searchStartY = Math.max(minY - vacuum.getSize(), vacuum.getStartY() - 1.0);
+            double searchEndY = Math.min(maxY, vacuum.getStartY() + 1.0);
+
+            for (int sx = toSampleIndex(searchStartX); sx <= toSampleIndex(searchEndX); sx++) {
+                for (int sy = toSampleIndex(searchStartY); sy <= toSampleIndex(searchEndY); sy++) {
+                    double worldX = fromSampleIndex(sx);
+                    double worldY = fromSampleIndex(sy);
+                    if (canRobotOccupy(worldX, worldY)) {
+                        return encodeSampleKey(sx, sy);
+                    }
+                }
+            }
+
+            return Long.MIN_VALUE;
+        }
+
+        private void markReachableCleaningTiles(double robotX, double robotY, int requiredPasses,
+                int startGx, int endGx, int startGy, int endGy) {
+            double cleanRadius = vacuum.getSize() * CLEANING_RADIUS_RATIO;
+            double centerX = robotX + vacuum.getSize() * 0.5;
+            double centerY = robotY + vacuum.getSize() * 0.5;
+
+            int minTileX = Math.max(startGx, (int) Math.floor(centerX - cleanRadius));
+            int maxTileX = Math.min(endGx, (int) Math.floor(centerX + cleanRadius));
+            int minTileY = Math.max(startGy, (int) Math.floor(centerY - cleanRadius));
+            int maxTileY = Math.min(endGy, (int) Math.floor(centerY + cleanRadius));
+
+            for (int gx = minTileX; gx <= maxTileX; gx++) {
+                for (int gy = minTileY; gy <= maxTileY; gy++) {
+                    if (!circleIntersectsTile(centerX, centerY, cleanRadius, gx, gy)) {
+                        continue;
+                    }
+                    if (!isTileSurfaceCleanable(gx, gy)) {
+                        continue;
+                    }
+
+                    long tileKey = encodeTileKey(gx, gy);
+                    cleanableTiles.add(tileKey);
+                    tilePassRequirements.put(tileKey, requiredPasses);
+                    tilePassCounts.putIfAbsent(tileKey, 0);
+                }
+            }
+        }
+
+        private boolean isTileSurfaceCleanable(int gx, int gy) {
+            double centerX = gx + 0.5;
+            double centerY = gy + 0.5;
+            if (house.getRoomAt(centerX, centerY) == null) {
+                return false;
+            }
+
+            for (Obstruction obstruction : house.getObstructions()) {
+                if (obstruction.blocksCleanableArea() && obstruction.contains(centerX, centerY)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private boolean canRobotOccupy(double robotX, double robotY) {
+            if (vacuum == null || house == null) {
+                return false;
+            }
+
+            double centerX = robotX + vacuum.getSize() * 0.5;
+            double centerY = robotY + vacuum.getSize() * 0.5;
+            if (house.getRoomAt(centerX, centerY) == null) {
+                return false;
+            }
+
+            double radius = vacuum.getSize() * 0.46;
+            for (Rectangle collider : vacuum.getWallColliders()) {
+                if (circleIntersectsRectangle(centerX, centerY, radius, collider)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private boolean circleIntersectsRectangle(double centerX, double centerY, double radius,
+                Rectangle rect) {
+            double nearestX =
+                    Math.max(rect.getX(), Math.min(centerX, rect.getX() + rect.getWidth()));
+            double nearestY =
+                    Math.max(rect.getY(), Math.min(centerY, rect.getY() + rect.getHeight()));
+            double dx = centerX - nearestX;
+            double dy = centerY - nearestY;
             return (dx * dx + dy * dy) <= (radius * radius);
         }
 
@@ -455,6 +619,38 @@ public final class BatchTrialRunner {
 
         private long encodeTileKey(int gx, int gy) {
             return (((long) gx) << 32) ^ (gy & 0xffffffffL);
+        }
+
+        private long encodeSampleKey(int sampleX, int sampleY) {
+            return (((long) sampleX) << 32) ^ (sampleY & 0xffffffffL);
+        }
+
+        private long encodeWorldSample(double worldX, double worldY) {
+            return encodeSampleKey(toSampleIndex(worldX), toSampleIndex(worldY));
+        }
+
+        private int toSampleIndex(double value) {
+            return (int) Math.round(value / REACHABILITY_STEP);
+        }
+
+        private double fromSampleIndex(int sampleIndex) {
+            return sampleIndex * REACHABILITY_STEP;
+        }
+
+        private int decodeSampleIndexX(long sampleKey) {
+            return (int) (sampleKey >> 32);
+        }
+
+        private int decodeSampleIndexY(long sampleKey) {
+            return (int) sampleKey;
+        }
+
+        private double decodeSampleX(long sampleKey) {
+            return fromSampleIndex(decodeSampleIndexX(sampleKey));
+        }
+
+        private double decodeSampleY(long sampleKey) {
+            return fromSampleIndex(decodeSampleIndexY(sampleKey));
         }
     }
 }

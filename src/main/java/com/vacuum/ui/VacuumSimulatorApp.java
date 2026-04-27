@@ -153,6 +153,7 @@ public class VacuumSimulatorApp extends Application {
         visualizationPane.setHouseChangedHandler(this::handleHouseChanged);
         visualizationPane.setHouse(house);
         simTimer = new simulationTimer(vacuum, visualizationPane);
+        simTimer.setSimulationCompleteHandler(this::handleSimulationCompleted);
 
         canvasHost = new StackPane(visualizationPane);
         canvasHost.getStyleClass().add("canvas-host");
@@ -162,6 +163,8 @@ public class VacuumSimulatorApp extends Application {
         scrollPane.setPannable(true); // Enable panning by dragging
         scrollPane.setFitToWidth(false);
         scrollPane.setFitToHeight(false);
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.ALWAYS);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.ALWAYS);
         scrollPane.getStyleClass().add("house-scroll-pane");
         canvasHost.prefWidthProperty().bind(Bindings.createDoubleBinding(
                 () -> Math.max(scrollPane.getViewportBounds().getWidth(),
@@ -312,7 +315,7 @@ public class VacuumSimulatorApp extends Application {
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.initOwner(primaryStage);
         dialog.setTitle("Resize Furniture");
-        dialog.setHeaderText("Enter new obstruction size (feet)");
+        dialog.setHeaderText("Enter new obstruction size (meters)");
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
 
         GridPane grid = new GridPane();
@@ -342,7 +345,7 @@ public class VacuumSimulatorApp extends Application {
                 double newHeight = Double.parseDouble(heightField.getText().trim());
 
                 if (visualizationPane.resizeSelectedObstruction(newWidth, newHeight)) {
-                    updateStatus(String.format("Resized furniture to %.1f × %.1f ft", newWidth,
+                    updateStatus(String.format("Resized furniture to %.1f × %.1f m", newWidth,
                             newHeight));
                 }
             } catch (NumberFormatException ex) {
@@ -512,11 +515,10 @@ public class VacuumSimulatorApp extends Application {
             if (active) {
                 addRoomToggle.setSelected(false);
                 visualizationPane.setAddRoomMode(false);
-                updateEditModeIndicator("Mode: New Obstruction (placeholder)", true);
                 updateEditModeIndicator(blocking ? "Mode: New Blocking Obstruction"
                         : "Mode: New Non-Blocking Obstruction", true);
                 updateEditModeVisuals(true, getObstructionModeColor());
-                updateStatus("Obstruction placement is not implemented yet.");
+                updateStatus("Draw mode: click and drag inside a room to place an obstruction");
             } else {
                 updateEditModeIndicator("Mode: Select Room", true);
                 updateEditModeVisuals(true, getEditModeColor());
@@ -678,7 +680,7 @@ public class VacuumSimulatorApp extends Application {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        Label statusHint = new Label("Scale baseline: 10 px / ft at 100%");
+        Label statusHint = new Label("Scale baseline: 10 px / m at 100%");
         statusHint.getStyleClass().add("status-hint");
 
         statusBar.getChildren().addAll(statusLabel, spacer, statusHint);
@@ -906,8 +908,10 @@ public class VacuumSimulatorApp extends Application {
         roomsValueLabel.setText(Integer.toString(house.getRooms().size()));
         doorsValueLabel.setText(Integer.toString(house.getDoors().size()));
         obstructionsValueLabel.setText(Integer.toString(house.getObstructions().size()));
-        totalAreaValueLabel.setText(String.format("%.1f ft²", house.getTotalArea()));
-        cleanableAreaValueLabel.setText(String.format("%.1f ft²", house.getCleanableArea()));
+        totalAreaValueLabel.setText(String.format("%.1f m²", house.getTotalArea()));
+        cleanableAreaValueLabel.setText(String.format("%.1f m² cleanable / %.1f m² non-cleanable",
+                visualizationPane.getComputedCleanableArea(),
+                visualizationPane.getNonCleanableArea()));
         floorCoveringValueLabel.setText(house.getFloorCovering().getDisplayName());
         seedValueLabel.setText(Long.toString(house.getSeed()));
 
@@ -960,40 +964,70 @@ public class VacuumSimulatorApp extends Application {
         stage.initOwner(primaryStage);
         stage.initModality(Modality.NONE);
         stage.setTitle("Controls");
-        stage.setMinWidth(420);
-        stage.setMinHeight(320);
+        stage.setMinWidth(440);
+        stage.setMinHeight(360);
 
-        VBox rootBox = new VBox(12);
+        VBox rootBox = new VBox(10);
         rootBox.setPadding(new Insets(16));
         rootBox.getStyleClass().add("app-root");
         rootBox.getStyleClass().add("info-panel");
+        rootBox.getStyleClass().add("controls-window");
 
         Label titleLabel = new Label("Controls");
         titleLabel.getStyleClass().add("panel-title");
+        Label subtitleLabel = new Label("Quick help for navigation, editing, and simulation");
+        subtitleLabel.getStyleClass().add("panel-subtitle");
 
-        VBox toolbarCard = new VBox(8);
-        toolbarCard.getStyleClass().add("info-card");
-        Label toolbarTitle = new Label("Toolbar");
-        toolbarTitle.getStyleClass().add("card-title");
-        Label toolbarText = new Label(
-                "- - and +: zoom out or in\n- 100%: reset zoom level\n- Edit Mode: shows edit tools and enables room editing\n- + Room: in the edit tools bar (Edit Mode only)\n- + Obstruction: placeholder button in the edit tools bar\n- Controls: open or hide this window\n- Dark / Light: switch the application theme");
-        toolbarText.setWrapText(true);
-        toolbarText.getStyleClass().add("hint-text");
-        toolbarCard.getChildren().addAll(toolbarTitle, toolbarText);
+        Accordion controlsAccordion = new Accordion();
+        controlsAccordion.getStyleClass().add("controls-accordion");
 
-        VBox canvasCard = new VBox(8);
-        canvasCard.getStyleClass().add("info-card");
-        Label canvasTitle = new Label("Canvas");
-        canvasTitle.getStyleClass().add("card-title");
-        Label canvasText = new Label(
-                "- Drag the background to pan\n- Hold Ctrl and use the mouse wheel to zoom\n- In normal mode, click to place the robot\n- In Edit Mode, click a room to select it\n- Drag room edge handles to resize in 1-foot increments\n- In + Room mode, click and drag to place a room\n- Select a room and click a dashed shared wall to add a door");
-        canvasText.setWrapText(true);
-        canvasText.getStyleClass().add("hint-text");
-        canvasCard.getChildren().addAll(canvasTitle, canvasText);
+        TitledPane toolbarSection = createControlsSection("Toolbar", "- - and + adjust zoom\n"
+                + "- 100% resets to baseline zoom\n" + "- Heat Map toggles the cleaning overlay\n"
+                + "- Follow Robot keeps the robot centered during active simulation\n"
+                + "- Edit Mode unlocks add/resize/delete tools (disabled while sim is running)\n"
+                + "- Controls opens or hides this help window\n"
+                + "- Dark / Light switches the full app theme");
 
-        rootBox.getChildren().addAll(titleLabel, toolbarCard, canvasCard);
+        TitledPane simulationSection = createControlsSection("Simulation",
+                "- Start begins from the configured robot position and battery\n"
+                        + "- Stop pauses and can resume if layout and parameters are unchanged\n"
+                        + "- Reset returns robot state and clears cleaning progress\n"
+                        + "- Speed controls (1x/2x/10x) are in Simulation Parameters\n"
+                        + "- Simulation ends on battery depletion or full coverage");
 
-        Scene scene = new Scene(rootBox, 440, 340);
+        TitledPane editSection = createControlsSection("Edit Tools",
+                "- + Room: drag to add a new room snapped to 1-meter grid\n"
+                        + "- + Obstruction: drag inside a room to add furniture\n"
+                        + "- Blocking chooses blocking vs pass-under obstruction\n"
+                        + "- Resize Furniture acts on the selected obstruction\n"
+                        + "- Delete Selected removes the selected room or obstruction");
+
+        TitledPane menusSection = createControlsSection("Menu Bar",
+                "- File: new, open, and save layout files\n"
+                        + "- Edit > Floor Covering: changes pass-efficiency profile\n"
+                        + "- View: zoom actions\n"
+                        + "- Simulation: start, pause, stop, reset, seed regeneration, and batch trials\n"
+                        + "- Help: About dialog");
+
+        TitledPane canvasSection = createControlsSection("Canvas",
+                "- Drag empty background to pan\n" + "- Hold Ctrl and scroll to zoom\n"
+                        + "- In normal mode, click to place robot start/current position\n"
+                        + "- In Edit Mode, click a room to select it\n"
+                        + "- Drag room edge handles to resize in 1-meter increments\n"
+                        + "- Click a dashed shared-wall hint to add a door");
+
+        controlsAccordion.getPanes().addAll(toolbarSection, simulationSection, editSection,
+                menusSection, canvasSection);
+        controlsAccordion.setExpandedPane(toolbarSection);
+
+        ScrollPane scrollPane = new ScrollPane(controlsAccordion);
+        scrollPane.setFitToWidth(true);
+        scrollPane.getStyleClass().add("right-scroll-pane");
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+
+        rootBox.getChildren().addAll(titleLabel, subtitleLabel, scrollPane);
+
+        Scene scene = new Scene(rootBox, 500, 520);
         URL cssUrl = getClass().getResource("/styles/simulator-theme.css");
         if (cssUrl != null) {
             scene.getStylesheets().add(cssUrl.toExternalForm());
@@ -1002,6 +1036,22 @@ public class VacuumSimulatorApp extends Application {
 
         stage.setScene(scene);
         return stage;
+    }
+
+    private TitledPane createControlsSection(String title, String content) {
+        Label contentLabel = new Label(content);
+        contentLabel.setWrapText(true);
+        contentLabel.getStyleClass().add("controls-section-text");
+        contentLabel.setMaxWidth(Double.MAX_VALUE);
+
+        VBox body = new VBox(contentLabel);
+        body.getStyleClass().add("controls-section-body");
+
+        TitledPane pane = new TitledPane(title, body);
+        pane.setCollapsible(true);
+        pane.setAnimated(false);
+        pane.getStyleClass().add("controls-section");
+        return pane;
     }
 
     private void updateControlsWindowTheme(boolean darkMode) {
@@ -1027,6 +1077,7 @@ public class VacuumSimulatorApp extends Application {
         dialog.setTitle("Regenerate From Seed");
         dialog.setHeaderText("Generate a new floor plan from a seed");
         dialog.setContentText("Seed:");
+        applyDialogTheme(dialog);
 
         dialog.showAndWait().ifPresent(raw -> {
             String value = raw == null ? "" : raw.trim();
@@ -1062,20 +1113,28 @@ public class VacuumSimulatorApp extends Application {
         dialog.initOwner(primaryStage);
         dialog.setTitle("Batch Simulation Trials");
         dialog.setHeaderText("Run repeated simulated trials and compare cleaning efficiency");
+        dialog.getDialogPane().setPrefWidth(560);
+        applyDialogTheme(dialog);
 
         ButtonType runButtonType = new ButtonType("Run Trials", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(runButtonType, ButtonType.CANCEL);
 
-        GridPane grid = new GridPane();
-        grid.setHgap(12);
-        grid.setVgap(10);
-        grid.setPadding(new Insets(8, 0, 0, 0));
+        VBox content = new VBox(12);
+        content.setPadding(new Insets(8, 0, 0, 0));
 
         Vacuum.MoveMode currentMode =
                 Vacuum.MoveMode.fromCode(parametersPanel.getSelectedMoveMode());
-        Label algorithmLabel = new Label("Algorithms to include");
+
+        VBox selectionCard = new VBox(10);
+        selectionCard.getStyleClass().add("info-card");
+        Label selectionTitle = new Label("Algorithms");
+        selectionTitle.getStyleClass().add("card-title");
+
         VBox algorithmBox = new VBox(6);
+        algorithmBox.setFillWidth(true);
         CheckBox selectAllAlgorithms = new CheckBox("Select all algorithms");
+        selectAllAlgorithms.setAllowIndeterminate(true);
+        selectAllAlgorithms.getStyleClass().add("metric-value");
 
         Map<Vacuum.MoveMode, CheckBox> algorithmChecks = new EnumMap<>(Vacuum.MoveMode.class);
         for (Vacuum.MoveMode mode : Vacuum.MoveMode.values()) {
@@ -1085,21 +1144,63 @@ public class VacuumSimulatorApp extends Application {
             algorithmBox.getChildren().add(check);
         }
 
-        selectAllAlgorithms.selectedProperty().addListener((obs, oldVal, selected) -> {
-            for (CheckBox check : algorithmChecks.values()) {
-                check.setSelected(selected);
+        final boolean[] syncingSelectionState = {false};
+
+        Runnable refreshSelectAllState = () -> {
+            syncingSelectionState[0] = true;
+            long selectedCount =
+                    algorithmChecks.values().stream().filter(CheckBox::isSelected).count();
+            if (selectedCount == 0) {
+                selectAllAlgorithms.setIndeterminate(false);
+                selectAllAlgorithms.setSelected(false);
+            } else if (selectedCount == algorithmChecks.size()) {
+                selectAllAlgorithms.setIndeterminate(false);
+                selectAllAlgorithms.setSelected(true);
+            } else {
+                selectAllAlgorithms.setSelected(false);
+                selectAllAlgorithms.setIndeterminate(true);
             }
+            syncingSelectionState[0] = false;
+        };
+
+        selectAllAlgorithms.setOnAction(e -> {
+            if (syncingSelectionState[0]) {
+                return;
+            }
+
+            boolean targetSelected = selectAllAlgorithms.isSelected();
+            syncingSelectionState[0] = true;
+            for (CheckBox check : algorithmChecks.values()) {
+                check.setSelected(targetSelected);
+            }
+            syncingSelectionState[0] = false;
+            refreshSelectAllState.run();
         });
 
         for (CheckBox check : algorithmChecks.values()) {
             check.selectedProperty().addListener((obs, oldVal, newVal) -> {
-                boolean allSelected =
-                        algorithmChecks.values().stream().allMatch(CheckBox::isSelected);
-                if (selectAllAlgorithms.isSelected() != allSelected) {
-                    selectAllAlgorithms.setSelected(allSelected);
+                if (!syncingSelectionState[0]) {
+                    refreshSelectAllState.run();
                 }
             });
         }
+        refreshSelectAllState.run();
+
+        Label selectionHint = new Label(
+                "Pick the algorithms to compare. Same-layout trials isolate movement strategy, while different-layout trials measure robustness across generated homes.");
+        selectionHint.setWrapText(true);
+        selectionHint.getStyleClass().add("hint-text");
+        selectionCard.getChildren().addAll(selectionTitle, selectAllAlgorithms, algorithmBox,
+                selectionHint);
+
+        VBox settingsCard = new VBox(10);
+        settingsCard.getStyleClass().add("info-card");
+        Label settingsTitle = new Label("Trial Settings");
+        settingsTitle.getStyleClass().add("card-title");
+
+        GridPane settingsGrid = new GridPane();
+        settingsGrid.setHgap(12);
+        settingsGrid.setVgap(10);
 
         Spinner<Integer> trialsSpinner = new Spinner<>(1, 500, 20, 1);
         trialsSpinner.setEditable(true);
@@ -1119,17 +1220,14 @@ public class VacuumSimulatorApp extends Application {
         hint.getStyleClass().add("hint-text");
         detailHint.getStyleClass().add("hint-text");
 
-        grid.add(algorithmLabel, 0, 0);
-        grid.add(selectAllAlgorithms, 1, 0);
-        grid.add(algorithmBox, 1, 1);
-        grid.add(new Label("Trials per algorithm"), 0, 2);
-        grid.add(trialsSpinner, 1, 2);
-        grid.add(new Label("Layout mode"), 0, 3);
-        grid.add(layoutCombo, 1, 3);
-        grid.add(hint, 0, 4, 2, 1);
-        grid.add(detailHint, 0, 5, 2, 1);
+        settingsGrid.add(new Label("Trials per algorithm"), 0, 0);
+        settingsGrid.add(trialsSpinner, 1, 0);
+        settingsGrid.add(new Label("Layout mode"), 0, 1);
+        settingsGrid.add(layoutCombo, 1, 1);
+        settingsCard.getChildren().addAll(settingsTitle, settingsGrid, hint, detailHint);
 
-        dialog.getDialogPane().setContent(grid);
+        content.getChildren().addAll(selectionCard, settingsCard);
+        dialog.getDialogPane().setContent(content);
 
         dialog.setResultConverter(button -> {
             if (button != runButtonType) {
@@ -1166,6 +1264,33 @@ public class VacuumSimulatorApp extends Application {
 
             runBatchTrials(selection);
         });
+    }
+
+    private void applyDialogTheme(Dialog<?> dialog) {
+        if (dialog == null || dialog.getDialogPane() == null) {
+            return;
+        }
+
+        DialogPane pane = dialog.getDialogPane();
+        if (!pane.getStyleClass().contains("app-root")) {
+            pane.getStyleClass().add("app-root");
+        }
+
+        URL cssUrl = getClass().getResource("/styles/simulator-theme.css");
+        if (cssUrl != null) {
+            String css = cssUrl.toExternalForm();
+            if (!pane.getStylesheets().contains(css)) {
+                pane.getStylesheets().add(css);
+            }
+        }
+
+        if (darkModeActive) {
+            if (!pane.getStyleClass().contains("dark-mode")) {
+                pane.getStyleClass().add("dark-mode");
+            }
+        } else {
+            pane.getStyleClass().remove("dark-mode");
+        }
     }
 
     private void runBatchTrials(BatchTrialSelection selection) {
@@ -1207,11 +1332,15 @@ public class VacuumSimulatorApp extends Application {
         VBox content = new VBox(12);
         content.setPadding(new Insets(16));
         content.setMinWidth(420);
+        content.getStyleClass().add("app-root");
 
         Label titleLabel = new Label("Executing simulation trials...");
+        titleLabel.getStyleClass().add("panel-title");
         ProgressBar progressBar = new ProgressBar(0);
         progressBar.setMaxWidth(Double.MAX_VALUE);
         Label progressLabel = new Label();
+        progressLabel.setWrapText(true);
+        progressLabel.getStyleClass().add("hint-text");
         Button cancelButton = new Button("Cancel");
         cancelButton.getStyleClass().add("shell-button");
         cancelButton.setOnAction(e -> task.cancel());
@@ -1219,7 +1348,10 @@ public class VacuumSimulatorApp extends Application {
         progressBar.progressProperty().bind(task.progressProperty());
         progressLabel.textProperty().bind(task.messageProperty());
 
-        content.getChildren().addAll(titleLabel, progressBar, progressLabel, cancelButton);
+        VBox progressCard = new VBox(10);
+        progressCard.getStyleClass().add("info-card");
+        progressCard.getChildren().addAll(titleLabel, progressBar, progressLabel, cancelButton);
+        content.getChildren().add(progressCard);
         Scene scene = new Scene(content);
         URL cssUrl = getClass().getResource("/styles/simulator-theme.css");
         if (cssUrl != null) {
@@ -1255,47 +1387,117 @@ public class VacuumSimulatorApp extends Application {
 
     private void showBatchTrialResults(BatchTrialRunner.BatchRunResult result,
             BatchTrialRunner.LayoutMode layoutMode, int trialsPerAlgorithm) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.initOwner(primaryStage);
-        alert.setTitle("Batch Trial Results");
-        alert.setHeaderText("Cleaning Efficiency Summary");
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.initOwner(primaryStage);
+        dialog.setTitle("Batch Trial Results");
+        dialog.setHeaderText("Cleaning Efficiency Summary");
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.getDialogPane().setPrefSize(720, 560);
 
-        StringBuilder summary = new StringBuilder();
-        summary.append("Layout mode: ")
-                .append(layoutMode == BatchTrialRunner.LayoutMode.SAME_LAYOUT ? "Same layout"
-                        : "Different generated layouts")
-                .append('\n');
-        summary.append("Trials per algorithm: ").append(trialsPerAlgorithm).append("\n");
-        summary.append("Completed trials: ").append(result.getCompletedTrials()).append("/")
-                .append(result.getTotalTrials()).append("\n\n");
+        VBox rootBox = new VBox(12);
+        rootBox.setPadding(new Insets(8, 0, 0, 0));
 
+        VBox summaryCard = new VBox(8);
+        summaryCard.getStyleClass().add("info-card");
+        Label summaryTitle = new Label("Run Summary");
+        summaryTitle.getStyleClass().add("card-title");
+
+        GridPane summaryGrid = new GridPane();
+        summaryGrid.setHgap(12);
+        summaryGrid.setVgap(8);
+        addMetricRow(summaryGrid, 0, "Layout Mode",
+                createMetricValueLabel(layoutMode == BatchTrialRunner.LayoutMode.SAME_LAYOUT
+                        ? "Same layout each trial"
+                        : "Different generated layouts"));
+        addMetricRow(summaryGrid, 1, "Trials per Algorithm",
+                createMetricValueLabel(Integer.toString(trialsPerAlgorithm)));
+        addMetricRow(summaryGrid, 2, "Completed Trials", createMetricValueLabel(
+                result.getCompletedTrials() + "/" + result.getTotalTrials()));
+        addMetricRow(summaryGrid, 3, "Status",
+                createMetricValueLabel(result.isCancelled() ? "Cancelled" : "Completed"));
+        summaryCard.getChildren().addAll(summaryTitle, summaryGrid);
+
+        VBox resultsCard = new VBox(10);
+        resultsCard.getStyleClass().add("info-card");
+        Label resultsTitle = new Label("Algorithm Comparison");
+        resultsTitle.getStyleClass().add("card-title");
+
+        GridPane resultsGrid = new GridPane();
+        resultsGrid.setHgap(14);
+        resultsGrid.setVgap(8);
+        addBatchResultsHeader(resultsGrid, 0, "Algorithm", "Avg", "Min / Max", "Std Dev",
+                "Avg Duration", "Trials");
+
+        int row = 1;
         for (Map.Entry<Vacuum.MoveMode, BatchTrialRunner.AlgorithmStats> entry : result
                 .getStatsByAlgorithm().entrySet()) {
             BatchTrialRunner.AlgorithmStats stats = entry.getValue();
-            summary.append(entry.getKey()).append('\n');
-            summary.append("  Average efficiency: ")
-                    .append(String.format("%.1f%%", stats.getAverageEfficiency() * 100.0))
-                    .append('\n');
-            summary.append("  Min / Max: ")
-                    .append(String.format("%.1f%%", stats.getMinEfficiency() * 100.0)).append(" / ")
-                    .append(String.format("%.1f%%", stats.getMaxEfficiency() * 100.0)).append('\n');
-            summary.append("  Std Dev: ")
-                    .append(String.format("%.1f%%", stats.getStdDevEfficiency() * 100.0))
-                    .append('\n');
-            summary.append("  Avg duration: ")
-                    .append(String.format("%.1f min", stats.getAverageDurationSeconds() / 60.0))
-                    .append('\n');
-            summary.append("  Trials: ").append(stats.getTrials()).append("\n\n");
+            addBatchResultsCell(resultsGrid, row, 0, entry.getKey().toString(), true);
+            addBatchResultsCell(resultsGrid, row, 1,
+                    String.format("%.1f%%", stats.getAverageEfficiency() * 100.0), false);
+            addBatchResultsCell(
+                    resultsGrid, row, 2, String.format("%.1f%% / %.1f%%",
+                            stats.getMinEfficiency() * 100.0, stats.getMaxEfficiency() * 100.0),
+                    false);
+            addBatchResultsCell(resultsGrid, row, 3,
+                    String.format("%.1f%%", stats.getStdDevEfficiency() * 100.0), false);
+            addBatchResultsCell(resultsGrid, row, 4,
+                    formatBatchDuration(stats.getAverageDurationSeconds()), false);
+            addBatchResultsCell(resultsGrid, row, 5, Integer.toString(stats.getTrials()), false);
+            row++;
         }
+        resultsCard.getChildren().addAll(resultsTitle, resultsGrid);
 
-        TextArea textArea = new TextArea(summary.toString());
-        textArea.setEditable(false);
-        textArea.setWrapText(true);
-        textArea.setPrefColumnCount(56);
-        textArea.setPrefRowCount(20);
+        ScrollPane scrollPane = new ScrollPane();
+        scrollPane.setFitToWidth(true);
+        scrollPane.setPrefViewportHeight(420);
+        VBox scrollContent = new VBox(12, summaryCard, resultsCard);
+        scrollContent.setPadding(new Insets(4, 0, 0, 0));
+        scrollPane.setContent(scrollContent);
+        scrollPane.getStyleClass().add("right-scroll-pane");
 
-        alert.getDialogPane().setContent(textArea);
-        alert.showAndWait();
+        rootBox.getChildren().add(scrollPane);
+        dialog.getDialogPane().setContent(rootBox);
+        dialog.showAndWait();
+    }
+
+    private Label createMetricValueLabel(String text) {
+        Label value = new Label(text);
+        value.getStyleClass().add("metric-value");
+        value.setWrapText(true);
+        return value;
+    }
+
+    private void addBatchResultsHeader(GridPane grid, int row, String... headers) {
+        for (int column = 0; column < headers.length; column++) {
+            Label headerLabel = new Label(headers[column]);
+            headerLabel.getStyleClass().add("card-title");
+            headerLabel.setWrapText(true);
+            grid.add(headerLabel, column, row);
+        }
+    }
+
+    private void addBatchResultsCell(GridPane grid, int row, int column, String text,
+            boolean emphasize) {
+        Label cell = new Label(text);
+        cell.getStyleClass().add(emphasize ? "metric-value" : "metric-label");
+        cell.setWrapText(true);
+        grid.add(cell, column, row);
+    }
+
+    private String formatBatchDuration(double seconds) {
+        int roundedSeconds = (int) Math.round(Math.max(0.0, seconds));
+        int minutes = roundedSeconds / 60;
+        int remainingSeconds = roundedSeconds % 60;
+        int hours = minutes / 60;
+
+        if (hours > 0) {
+            return String.format("%dh %02dm %02ds", hours, minutes % 60, remainingSeconds);
+        }
+        if (minutes > 0) {
+            return String.format("%dm %02ds", minutes, remainingSeconds);
+        }
+        return String.format("%ds", remainingSeconds);
     }
 
     private void createNewLayout() {
@@ -1624,6 +1826,7 @@ public class VacuumSimulatorApp extends Application {
         });
         resetButton.setOnAction(e -> {
             simTimer.stop();
+            simTimer.resetElapsedTime();
             setSimulationEditingEnabled(true);
             vacuum.reset(parametersPanel.getStartBattery(), parametersPanel.getSelectedMoveMode());
             clearPausedSnapshot();
@@ -1718,7 +1921,8 @@ public class VacuumSimulatorApp extends Application {
     private void createRightPanel() {
         VBox rightContainer = new VBox(0);
         rightContainer.setPrefWidth(320);
-        rightContainer.setMinWidth(280);
+        rightContainer.setMinWidth(340);
+        rightContainer.setPrefWidth(380);
         rightContainer.getStyleClass().add("right-panel");
 
         // House info panel
@@ -1742,6 +1946,24 @@ public class VacuumSimulatorApp extends Application {
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
 
         root.setRight(rightContainer);
+    }
+
+    private void handleSimulationCompleted() {
+        setSimulationEditingEnabled(true);
+        clearPausedSnapshot();
+        startItem.setDisable(false);
+        stopItem.setDisable(true);
+        pauseItem.setDisable(true);
+        startButton.setDisable(false);
+        stopButton.setDisable(true);
+
+        if (vacuum.getBattery() <= 0) {
+            updateStatus("Simulation stopped: battery depleted");
+        } else if (visualizationPane.isHouseFullyCleaned()) {
+            updateStatus("Simulation stopped: house fully cleaned");
+        } else {
+            updateStatus("Simulation stopped");
+        }
     }
 
     public static void main(String[] args) {
