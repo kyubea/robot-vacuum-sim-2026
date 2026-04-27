@@ -52,7 +52,6 @@ public class ParametersPanel extends VBox {
         this.visualizationPane = visualizationPane;
 
         this.setPadding(new Insets(16));
-        this.setStyle("-fx-border-left: 1px solid #CCCCCC;");
         this.getStyleClass().add("parameters-panel");
         this.setPrefWidth(380);
         this.setMinWidth(340);
@@ -149,7 +148,7 @@ public class ParametersPanel extends VBox {
         // Speed buttons container
         VBox buttonContainer = new VBox(8);
         Label controlsLabel = new Label("Speed Multipliers");
-        controlsLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 12;");
+        controlsLabel.getStyleClass().add("card-title");
 
         HBox buttonRow1 = new HBox(6);
         buttonRow1.setAlignment(Pos.CENTER);
@@ -254,7 +253,7 @@ public class ParametersPanel extends VBox {
         Label noteLabel = new Label(
                 "Tip: click the plan to reposition the vacuum when the simulation is stopped.");
         noteLabel.setWrapText(true);
-        noteLabel.setStyle("-fx-font-size: 11; -fx-text-fill: #666666;");
+        noteLabel.getStyleClass().add("panel-subtitle");
 
         card.getChildren().addAll(cardTitle, grid, new Separator(), noteLabel);
         return card;

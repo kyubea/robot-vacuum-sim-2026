@@ -87,6 +87,7 @@ public class HouseVisualizationPane extends Pane {
     private final Map<Long, Integer> tilePassCounts = new HashMap<>();
     private final Map<Long, Integer> tilePassRequirements = new HashMap<>();
     private final Set<Long> cleanableTiles = new HashSet<>();
+    private final Set<Long> tilesTouchedLastUpdate = new HashSet<>();
     private boolean cleaningMapInitialized = false;
     private boolean cleaningHeatMapVisible = true;
     private double cleaningEfficiencyPerPass = 1.0;
@@ -351,6 +352,7 @@ public class HouseVisualizationPane extends Pane {
         tilePassCounts.clear();
         tilePassRequirements.clear();
         cleanableTiles.clear();
+        tilesTouchedLastUpdate.clear();
         cleaningMapInitialized = false;
         cleaningEfficiencyPerPass = 1.0;
     }
@@ -382,6 +384,7 @@ public class HouseVisualizationPane extends Pane {
         int endGx = (int) Math.floor(centerX + cleanRadius);
         int startGy = (int) Math.floor(centerY - cleanRadius);
         int endGy = (int) Math.floor(centerY + cleanRadius);
+        Set<Long> tilesTouchedThisUpdate = new HashSet<>();
 
         for (int gx = startGx; gx <= endGx; gx++) {
             for (int gy = startGy; gy <= endGy; gy++) {
@@ -393,14 +396,18 @@ public class HouseVisualizationPane extends Pane {
                 if (!cleanableTiles.contains(tileKey)) {
                     continue;
                 }
+                tilesTouchedThisUpdate.add(tileKey);
 
                 int required = tilePassRequirements.getOrDefault(tileKey, 1);
                 int currentPasses = tilePassCounts.getOrDefault(tileKey, 0);
-                if (currentPasses < required) {
+                if (!tilesTouchedLastUpdate.contains(tileKey) && currentPasses < required) {
                     tilePassCounts.put(tileKey, currentPasses + 1);
                 }
             }
         }
+
+        tilesTouchedLastUpdate.clear();
+        tilesTouchedLastUpdate.addAll(tilesTouchedThisUpdate);
     }
 
     private boolean circleIntersectsTile(double cx, double cy, double radius, int tileX,
@@ -651,15 +658,14 @@ public class HouseVisualizationPane extends Pane {
     }
 
     public double getCleanedArea() {
-        double fullyCleanedArea = 0.0;
+        double cleanedArea = 0.0;
         for (long tileKey : cleanableTiles) {
+            int required = tilePassRequirements.getOrDefault(tileKey, 1);
             int passes = tilePassCounts.getOrDefault(tileKey, 0);
-            double progress = Math.min(1.0, passes * cleaningEfficiencyPerPass);
-            if (progress >= 1.0) {
-                fullyCleanedArea += TILE_SIZE * TILE_SIZE; // 1.0 m²
-            }
+            double progress = Math.min(1.0, (double) passes / Math.max(1, required));
+            cleanedArea += progress * TILE_SIZE * TILE_SIZE;
         }
-        return fullyCleanedArea;
+        return cleanedArea;
 
     }
 
@@ -696,7 +702,7 @@ public class HouseVisualizationPane extends Pane {
         for (long tileKey : cleanableTiles) {
             int required = tilePassRequirements.getOrDefault(tileKey, 1);
             int passes = tilePassCounts.getOrDefault(tileKey, 0);
-            double progress = Math.min(1.0, passes * cleaningEfficiencyPerPass);
+            double progress = Math.min(1.0, (double) passes / Math.max(1, required));
 
             int gx = decodeTileX(tileKey);
             int gy = decodeTileY(tileKey);
@@ -1558,11 +1564,11 @@ public class HouseVisualizationPane extends Pane {
             rect.setHeight(obstruction.getHeight() * scale);
 
             if (obstruction instanceof BlockingObstruction) {
-                rect.setFill(darkMode ? Color.web("#3a444a") : Color.web("#5e6a72"));
-                rect.setStroke(darkMode ? Color.web("#1f282e") : Color.web("#2f3a40"));
+                rect.setFill(darkMode ? Color.web("#556a78") : Color.web("#5e6a72"));
+                rect.setStroke(darkMode ? Color.web("#2c3d49") : Color.web("#2f3a40"));
             } else if (obstruction instanceof PassUnderObstruction) {
-                rect.setFill(darkMode ? Color.web("#2c3a42") : Color.web("#ccd3d8"));
-                rect.setStroke(darkMode ? Color.web("#3e5060") : Color.web("#67747d"));
+                rect.setFill(darkMode ? Color.web("#2f4956") : Color.web("#ccd3d8"));
+                rect.setStroke(darkMode ? Color.web("#88b9cf") : Color.web("#67747d"));
                 rect.getStrokeDashArray().addAll(5.0, 5.0);
             }
 

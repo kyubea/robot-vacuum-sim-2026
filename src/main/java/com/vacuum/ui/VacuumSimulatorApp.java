@@ -515,11 +515,10 @@ public class VacuumSimulatorApp extends Application {
             if (active) {
                 addRoomToggle.setSelected(false);
                 visualizationPane.setAddRoomMode(false);
-                updateEditModeIndicator("Mode: New Obstruction (placeholder)", true);
                 updateEditModeIndicator(blocking ? "Mode: New Blocking Obstruction"
                         : "Mode: New Non-Blocking Obstruction", true);
                 updateEditModeVisuals(true, getObstructionModeColor());
-                updateStatus("Obstruction placement is not implemented yet.");
+                updateStatus("Draw mode: click and drag inside a room to place an obstruction");
             } else {
                 updateEditModeIndicator("Mode: Select Room", true);
                 updateEditModeVisuals(true, getEditModeColor());
@@ -965,40 +964,70 @@ public class VacuumSimulatorApp extends Application {
         stage.initOwner(primaryStage);
         stage.initModality(Modality.NONE);
         stage.setTitle("Controls");
-        stage.setMinWidth(420);
-        stage.setMinHeight(320);
+        stage.setMinWidth(440);
+        stage.setMinHeight(360);
 
-        VBox rootBox = new VBox(12);
+        VBox rootBox = new VBox(10);
         rootBox.setPadding(new Insets(16));
         rootBox.getStyleClass().add("app-root");
         rootBox.getStyleClass().add("info-panel");
+        rootBox.getStyleClass().add("controls-window");
 
         Label titleLabel = new Label("Controls");
         titleLabel.getStyleClass().add("panel-title");
+        Label subtitleLabel = new Label("Quick help for navigation, editing, and simulation");
+        subtitleLabel.getStyleClass().add("panel-subtitle");
 
-        VBox toolbarCard = new VBox(8);
-        toolbarCard.getStyleClass().add("info-card");
-        Label toolbarTitle = new Label("Toolbar");
-        toolbarTitle.getStyleClass().add("card-title");
-        Label toolbarText = new Label(
-                "- - and +: zoom out or in\n- 100%: reset zoom level\n- Edit Mode: shows edit tools and enables room editing\n- + Room: in the edit tools bar (Edit Mode only)\n- + Obstruction: placeholder button in the edit tools bar\n- Controls: open or hide this window\n- Dark / Light: switch the application theme");
-        toolbarText.setWrapText(true);
-        toolbarText.getStyleClass().add("hint-text");
-        toolbarCard.getChildren().addAll(toolbarTitle, toolbarText);
+        Accordion controlsAccordion = new Accordion();
+        controlsAccordion.getStyleClass().add("controls-accordion");
 
-        VBox canvasCard = new VBox(8);
-        canvasCard.getStyleClass().add("info-card");
-        Label canvasTitle = new Label("Canvas");
-        canvasTitle.getStyleClass().add("card-title");
-        Label canvasText = new Label(
-                "- Drag the background to pan\n- Hold Ctrl and use the mouse wheel to zoom\n- In normal mode, click to place the robot\n- In Edit Mode, click a room to select it\n- Drag room edge handles to resize in 1-foot increments\n- In + Room mode, click and drag to place a room\n- Select a room and click a dashed shared wall to add a door");
-        canvasText.setWrapText(true);
-        canvasText.getStyleClass().add("hint-text");
-        canvasCard.getChildren().addAll(canvasTitle, canvasText);
+        TitledPane toolbarSection = createControlsSection("Toolbar", "- - and + adjust zoom\n"
+                + "- 100% resets to baseline zoom\n" + "- Heat Map toggles the cleaning overlay\n"
+                + "- Follow Robot keeps the robot centered during active simulation\n"
+                + "- Edit Mode unlocks add/resize/delete tools (disabled while sim is running)\n"
+                + "- Controls opens or hides this help window\n"
+                + "- Dark / Light switches the full app theme");
 
-        rootBox.getChildren().addAll(titleLabel, toolbarCard, canvasCard);
+        TitledPane simulationSection = createControlsSection("Simulation",
+                "- Start begins from the configured robot position and battery\n"
+                        + "- Stop pauses and can resume if layout and parameters are unchanged\n"
+                        + "- Reset returns robot state and clears cleaning progress\n"
+                        + "- Speed controls (1x/2x/10x) are in Simulation Parameters\n"
+                        + "- Simulation ends on battery depletion or full coverage");
 
-        Scene scene = new Scene(rootBox, 440, 340);
+        TitledPane editSection = createControlsSection("Edit Tools",
+                "- + Room: drag to add a new room snapped to 1-meter grid\n"
+                        + "- + Obstruction: drag inside a room to add furniture\n"
+                        + "- Blocking chooses blocking vs pass-under obstruction\n"
+                        + "- Resize Furniture acts on the selected obstruction\n"
+                        + "- Delete Selected removes the selected room or obstruction");
+
+        TitledPane menusSection = createControlsSection("Menu Bar",
+                "- File: new, open, and save layout files\n"
+                        + "- Edit > Floor Covering: changes pass-efficiency profile\n"
+                        + "- View: zoom actions\n"
+                        + "- Simulation: start, pause, stop, reset, seed regeneration, and batch trials\n"
+                        + "- Help: About dialog");
+
+        TitledPane canvasSection = createControlsSection("Canvas",
+                "- Drag empty background to pan\n" + "- Hold Ctrl and scroll to zoom\n"
+                        + "- In normal mode, click to place robot start/current position\n"
+                        + "- In Edit Mode, click a room to select it\n"
+                        + "- Drag room edge handles to resize in 1-meter increments\n"
+                        + "- Click a dashed shared-wall hint to add a door");
+
+        controlsAccordion.getPanes().addAll(toolbarSection, simulationSection, editSection,
+                menusSection, canvasSection);
+        controlsAccordion.setExpandedPane(toolbarSection);
+
+        ScrollPane scrollPane = new ScrollPane(controlsAccordion);
+        scrollPane.setFitToWidth(true);
+        scrollPane.getStyleClass().add("right-scroll-pane");
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+
+        rootBox.getChildren().addAll(titleLabel, subtitleLabel, scrollPane);
+
+        Scene scene = new Scene(rootBox, 500, 520);
         URL cssUrl = getClass().getResource("/styles/simulator-theme.css");
         if (cssUrl != null) {
             scene.getStylesheets().add(cssUrl.toExternalForm());
@@ -1007,6 +1036,22 @@ public class VacuumSimulatorApp extends Application {
 
         stage.setScene(scene);
         return stage;
+    }
+
+    private TitledPane createControlsSection(String title, String content) {
+        Label contentLabel = new Label(content);
+        contentLabel.setWrapText(true);
+        contentLabel.getStyleClass().add("controls-section-text");
+        contentLabel.setMaxWidth(Double.MAX_VALUE);
+
+        VBox body = new VBox(contentLabel);
+        body.getStyleClass().add("controls-section-body");
+
+        TitledPane pane = new TitledPane(title, body);
+        pane.setCollapsible(true);
+        pane.setAnimated(false);
+        pane.getStyleClass().add("controls-section");
+        return pane;
     }
 
     private void updateControlsWindowTheme(boolean darkMode) {
@@ -1032,6 +1077,7 @@ public class VacuumSimulatorApp extends Application {
         dialog.setTitle("Regenerate From Seed");
         dialog.setHeaderText("Generate a new floor plan from a seed");
         dialog.setContentText("Seed:");
+        applyDialogTheme(dialog);
 
         dialog.showAndWait().ifPresent(raw -> {
             String value = raw == null ? "" : raw.trim();
@@ -1068,6 +1114,7 @@ public class VacuumSimulatorApp extends Application {
         dialog.setTitle("Batch Simulation Trials");
         dialog.setHeaderText("Run repeated simulated trials and compare cleaning efficiency");
         dialog.getDialogPane().setPrefWidth(560);
+        applyDialogTheme(dialog);
 
         ButtonType runButtonType = new ButtonType("Run Trials", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(runButtonType, ButtonType.CANCEL);
@@ -1217,6 +1264,33 @@ public class VacuumSimulatorApp extends Application {
 
             runBatchTrials(selection);
         });
+    }
+
+    private void applyDialogTheme(Dialog<?> dialog) {
+        if (dialog == null || dialog.getDialogPane() == null) {
+            return;
+        }
+
+        DialogPane pane = dialog.getDialogPane();
+        if (!pane.getStyleClass().contains("app-root")) {
+            pane.getStyleClass().add("app-root");
+        }
+
+        URL cssUrl = getClass().getResource("/styles/simulator-theme.css");
+        if (cssUrl != null) {
+            String css = cssUrl.toExternalForm();
+            if (!pane.getStylesheets().contains(css)) {
+                pane.getStylesheets().add(css);
+            }
+        }
+
+        if (darkModeActive) {
+            if (!pane.getStyleClass().contains("dark-mode")) {
+                pane.getStyleClass().add("dark-mode");
+            }
+        } else {
+            pane.getStyleClass().remove("dark-mode");
+        }
     }
 
     private void runBatchTrials(BatchTrialSelection selection) {

@@ -107,6 +107,10 @@ public class Vacuum {
     private double stuckTimeSeconds = 0;
     private double recoveryTargetHeading = 0;
     private boolean recoveringFromStuck = false;
+    private double escapeDriveTimeSeconds = 0;
+    private double noProgressTimeSeconds = 0;
+    private double progressAnchorX = 0;
+    private double progressAnchorY = 0;
 
     public Vacuum(double x, double y) {
         this.x = x;
@@ -144,6 +148,10 @@ public class Vacuum {
         this.stuckTimeSeconds = 0;
         this.recoveringFromStuck = false;
         this.recoveryTargetHeading = this.orientation;
+        this.escapeDriveTimeSeconds = 0;
+        this.noProgressTimeSeconds = 0;
+        this.progressAnchorX = this.x;
+        this.progressAnchorY = this.y;
     }
 
     /*
@@ -183,25 +191,31 @@ public class Vacuum {
                 rotateToward(recoveryTargetHeading, 220.0, deltaTime);
                 if (isAngleClose(orientation, recoveryTargetHeading, 3.0)) {
                     recoveringFromStuck = false;
+                    escapeDriveTimeSeconds = 0.85;
                 }
                 this.lastSpeed = 0;
                 return;
             }
 
-            switch (moveMode) {
-                default:
-                    alg1(deltaTime);
-                    break;
-                case 2:
-                    alg2(deltaTime);
-                    break;
-                case 3:
-                    alg3(deltaTime);
-                    break;
-                case 4:
-                    alg4(deltaTime);
-                    break;
+            if (escapeDriveTimeSeconds > 0) {
+                runEscapeDrive(deltaTime);
+                escapeDriveTimeSeconds = Math.max(0.0, escapeDriveTimeSeconds - deltaTime);
+            } else {
+                switch (moveMode) {
+                    default:
+                        alg1(deltaTime);
+                        break;
+                    case 2:
+                        alg2(deltaTime);
+                        break;
+                    case 3:
+                        alg3(deltaTime);
+                        break;
+                    case 4:
+                        alg4(deltaTime);
+                        break;
 
+                }
             }
 
             boolean collided = testCollision(rollbackX, rollbackY);
@@ -213,15 +227,78 @@ public class Vacuum {
                 stuckTimeSeconds = Math.max(0.0, stuckTimeSeconds - deltaTime * 2.0);
             }
 
-            if (stuckTimeSeconds > 1.0) {
-                recoveringFromStuck = true;
-                recoveryTargetHeading = normalizeAngle(orientation + 70.0 + Math.random() * 80.0);
-                stuckTimeSeconds = 0;
+            double distanceFromAnchor = Math.hypot(x - progressAnchorX, y - progressAnchorY);
+            if (distanceFromAnchor > 0.20) {
+                progressAnchorX = x;
+                progressAnchorY = y;
+                noProgressTimeSeconds = 0;
+            } else {
+                noProgressTimeSeconds += deltaTime;
+            }
+
+            if (stuckTimeSeconds > 1.0 || noProgressTimeSeconds > 2.4) {
+                triggerRecovery();
             }
         } else {
             this.lastSpeed = 0;
             System.out.println("Battery has run out");
         }
+    }
+
+    private void runEscapeDrive(double deltaTime) {
+        double escapeSpeed = Math.max(0.45, moveSpeedFeetPerSec * 0.8);
+
+        if (!isObstacleNear(orientation, VACUUM_SIZE * 0.45)) {
+            forward(escapeSpeed, deltaTime);
+            return;
+        }
+
+        double reverseDistance = Math.max(0.10, escapeSpeed * deltaTime * 0.9);
+        double radians = Math.toRadians(orientation);
+        double reverseX = x - Math.cos(radians) * reverseDistance;
+        double reverseY = y - Math.sin(radians) * reverseDistance;
+
+        if (!checkCollisionAt(reverseX, reverseY)) {
+            x = reverseX;
+            y = reverseY;
+            this.lastSpeed = escapeSpeed;
+            return;
+        }
+
+        recoveryTargetHeading = pickBestEscapeHeading();
+        recoveringFromStuck = true;
+        escapeDriveTimeSeconds = 0;
+        this.lastSpeed = 0;
+    }
+
+    private void triggerRecovery() {
+        recoveringFromStuck = true;
+        escapeDriveTimeSeconds = 0;
+        recoveryTargetHeading = pickBestEscapeHeading();
+        stuckTimeSeconds = 0;
+        noProgressTimeSeconds = 0;
+        progressAnchorX = x;
+        progressAnchorY = y;
+    }
+
+    private double pickBestEscapeHeading() {
+        double bestHeading = normalizeAngle(orientation + 120.0);
+        double bestScore = Double.NEGATIVE_INFINITY;
+
+        for (int i = 0; i < 16; i++) {
+            double heading = normalizeAngle(orientation + i * 22.5);
+            double clearance = distanceToObstacle(heading, 3.0);
+            double turnCost = Math.abs(shortestSignedAngleDiff(heading, orientation)) / 180.0;
+            double jitter = Math.random() * 0.15;
+            double score = clearance - (turnCost * 0.25) + jitter;
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestHeading = heading;
+            }
+        }
+
+        return bestHeading;
     }
 
     private void alg1(double deltaTime) {
