@@ -88,6 +88,7 @@ public class HouseVisualizationPane extends Pane {
     private final Map<Long, Integer> tilePassRequirements = new HashMap<>();
     private final Set<Long> cleanableTiles = new HashSet<>();
     private final Set<Long> tilesTouchedLastUpdate = new HashSet<>();
+    private final Set<Long> tilesTouchedThisUpdate = new HashSet<>();
     private boolean cleaningMapInitialized = false;
     private boolean cleaningHeatMapVisible = true;
     private double cleaningEfficiencyPerPass = 1.0;
@@ -353,6 +354,7 @@ public class HouseVisualizationPane extends Pane {
         tilePassRequirements.clear();
         cleanableTiles.clear();
         tilesTouchedLastUpdate.clear();
+        tilesTouchedThisUpdate.clear();
         cleaningMapInitialized = false;
         cleaningEfficiencyPerPass = 1.0;
     }
@@ -384,7 +386,7 @@ public class HouseVisualizationPane extends Pane {
         int endGx = (int) Math.floor(centerX + cleanRadius);
         int startGy = (int) Math.floor(centerY - cleanRadius);
         int endGy = (int) Math.floor(centerY + cleanRadius);
-        Set<Long> tilesTouchedThisUpdate = new HashSet<>();
+        tilesTouchedThisUpdate.clear();
 
         for (int gx = startGx; gx <= endGx; gx++) {
             for (int gy = startGy; gy <= endGy; gy++) {

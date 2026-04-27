@@ -31,21 +31,19 @@ public class simulationTimer {
             public void handle(long currentTime) {
                 if (prevTime > 0) {
                     double realDeltaTime = (currentTime - prevTime) / 1_000_000_000.0;
-                    if (realDeltaTime < (1.0 / 60.0)) {
-                        visualizationPane.render();
+                    if (realDeltaTime <= 0.0) {
                         prevTime = currentTime;
                         return;
                     }
-                    double deltaTime = realDeltaTime * timeMultiplier; // Apply speed multiplier
+                    // Clamp very large catch-up steps to reduce visible hitching after stalls.
+                    double deltaTime = Math.min(0.5, realDeltaTime * timeMultiplier);
                     // Bound catch-up work to prevent frame-time spirals under heavy load.
-                    // deltaTime = Math.min(deltaTime, 0.30);
-                    // Process in smaller slices to reduce tunneling through thin colliders.
-                    double remaining = deltaTime;
-                    final double maxStep = 1.0 / 60.0;
-                    // int iterations = 0;
-                    // final int maxIterations = 30;
-                    while (remaining > 0) {
-                        double step = Math.min(maxStep, remaining);
+                    // Process in bounded slices to reduce tunneling through thin colliders.
+                    final double maxSubStep = 1.0 / 60.0;
+                    int subSteps = Math.max(1, (int) Math.ceil(deltaTime / maxSubStep));
+                    subSteps = Math.min(subSteps, 30);
+                    double step = deltaTime / subSteps;
+                    for (int i = 0; i < subSteps; i++) {
                         vacuum.update(step);
                         visualizationPane.updateCleaningFromVacuumFrontHitbox();
                         accumulatedSimulationSeconds += step;
@@ -58,7 +56,6 @@ public class simulationTimer {
                             visualizationPane.render();
                             return;
                         }
-                        remaining -= step;
                     }
                 }
                 visualizationPane.render();

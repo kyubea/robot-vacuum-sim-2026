@@ -18,6 +18,7 @@ import javafx.util.StringConverter;
 public class ParametersPanel extends VBox {
 
     private static final double FLOOR_EFFICIENCY_STEP = 0.05;
+    private static final long UI_REFRESH_INTERVAL_NANOS = 100_000_000L;
 
     private House house;
     private Vacuum vacuum;
@@ -50,6 +51,7 @@ public class ParametersPanel extends VBox {
     private ToggleButton speed10xButton;
     private Label speedMultiplierLabel;
     private Runnable parametersChangedHandler;
+    private long lastUiRefreshNanos = -1;
 
     public ParametersPanel(House house, Vacuum vacuum, simulationTimer simTimer,
             HouseVisualizationPane visualizationPane) {
@@ -446,7 +448,11 @@ public class ParametersPanel extends VBox {
         AnimationTimer updateTimer = new AnimationTimer() {
             @Override
             public void handle(long now) {
-                updateValues();
+                if (lastUiRefreshNanos < 0
+                        || (now - lastUiRefreshNanos) >= UI_REFRESH_INTERVAL_NANOS) {
+                    updateValues();
+                    lastUiRefreshNanos = now;
+                }
             }
         };
         updateTimer.start();
