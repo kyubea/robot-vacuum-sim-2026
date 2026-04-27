@@ -52,16 +52,19 @@ public class House {
                         0.2857), CUTPILE("vac_cutpile.png", "Cut Pile", 0.2857), CALIFORNIASHAG(
                                 "vac_californiashag.png", "California Shag", 0.2857);
 
+        public static final double MIN_DEFAULT_EFFICIENCY = 0.10;
+        public static final double MAX_DEFAULT_EFFICIENCY = 1.00;
+
         private final Image userFloor;
         private final String displayName;
-        private final double defaultEfficiency;
+        private double defaultEfficiency;
 
         FloorCovering(String imageName, String displayName, double defaultEfficiency) {
             String path = "/" + imageName;
             this.userFloor = new Image(getClass().getResourceAsStream(path));
 
             this.displayName = displayName;
-            this.defaultEfficiency = defaultEfficiency;
+            this.defaultEfficiency = clampDefaultEfficiency(defaultEfficiency);
         }
 
         public String getDisplayName() {
@@ -70,6 +73,14 @@ public class House {
 
         public double getDefaultEfficiency() {
             return defaultEfficiency;
+        }
+
+        public void setDefaultEfficiency(double defaultEfficiency) {
+            this.defaultEfficiency = clampDefaultEfficiency(defaultEfficiency);
+        }
+
+        private static double clampDefaultEfficiency(double efficiency) {
+            return Math.max(MIN_DEFAULT_EFFICIENCY, Math.min(MAX_DEFAULT_EFFICIENCY, efficiency));
         }
     }
 
@@ -428,22 +439,18 @@ public class House {
             _generate(targetNumRooms, minTotalArea, maxTotalArea);
 
             List<String> errors = validate();
-            if (errors.isEmpty() && rooms.size() == targetNumRooms){
-                break;                
+            if (errors.isEmpty() && rooms.size() == targetNumRooms) {
+                break;
             }
             /*
-            System.err.println("House generation produced an invalid result.");
-            System.err.println("Please capture the following information and report!");
-            System.err.printf(
-                    "Seed: %d  targetNumRooms: %d  minTotalArea: %.2f  maxTotalArea: %2f%n",
-                    this.seed, targetNumRooms, minTotalArea, maxTotalArea);
-            for (String e : errors)
-                System.err.println(e);
-            for (Room r : rooms)
-                System.err.println(r);
-            for (Door d : doors)
-                System.err.println(d);
-            System.err.println("Generation will now retry...");*/
+             * System.err.println("House generation produced an invalid result.");
+             * System.err.println("Please capture the following information and report!");
+             * System.err.printf(
+             * "Seed: %d  targetNumRooms: %d  minTotalArea: %.2f  maxTotalArea: %2f%n", this.seed,
+             * targetNumRooms, minTotalArea, maxTotalArea); for (String e : errors)
+             * System.err.println(e); for (Room r : rooms) System.err.println(r); for (Door d :
+             * doors) System.err.println(d); System.err.println("Generation will now retry...");
+             */
         }
 
         // Success! Normalize the floor plan.

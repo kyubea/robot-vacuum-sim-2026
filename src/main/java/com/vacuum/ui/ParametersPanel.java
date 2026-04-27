@@ -1,5 +1,6 @@
 package com.vacuum.ui;
 
+import com.vacuum.model.House;
 import com.vacuum.util.Vacuum;
 import com.vacuum.util.simulationTimer;
 import javafx.animation.AnimationTimer;
@@ -16,6 +17,10 @@ import javafx.util.StringConverter;
  */
 public class ParametersPanel extends VBox {
 
+    private static final double FLOOR_EFFICIENCY_STEP = 0.05;
+    private static final long UI_REFRESH_INTERVAL_NANOS = 100_000_000L;
+
+    private House house;
     private Vacuum vacuum;
     private simulationTimer simTimer;
     private HouseVisualizationPane visualizationPane;
@@ -35,7 +40,10 @@ public class ParametersPanel extends VBox {
     private Spinner<Double> batteryDrainSpinner;
     private Spinner<Integer> batteryStartSpinner;
     private Spinner<Double> robotSpeedSpinner;
+    private Spinner<Double> floorEfficiencySpinner;
     private ComboBox<Vacuum.MoveMode> movementAlgorithmCombo;
+    private Label floorEfficiencyFloorLabel;
+    private House.FloorCovering lastObservedFloorCovering;
 
     // Speed multiplier buttons
     private ToggleButton speed1xButton;
@@ -43,17 +51,19 @@ public class ParametersPanel extends VBox {
     private ToggleButton speed10xButton;
     private Label speedMultiplierLabel;
     private Runnable parametersChangedHandler;
+    private long lastUiRefreshNanos = -1;
 
-    public ParametersPanel(Vacuum vacuum, simulationTimer simTimer,
+    public ParametersPanel(House house, Vacuum vacuum, simulationTimer simTimer,
             HouseVisualizationPane visualizationPane) {
         super(12);
+        this.house = house;
         this.vacuum = vacuum;
         this.simTimer = simTimer;
         this.visualizationPane = visualizationPane;
 
         this.setPadding(new Insets(16));
-        this.setStyle("-fx-border-color: transparent transparent transparent #CCCCCC;" +
-                "-fx-border-width: 0 0 0 1;");        
+        this.setStyle("-fx-border-color: transparent transparent transparent #CCCCCC;"
+                + "-fx-border-width: 0 0 0 1;");
         this.getStyleClass().add("parameters-panel");
         this.setPrefWidth(380);
         this.setMinWidth(340);
@@ -112,7 +122,7 @@ public class ParametersPanel extends VBox {
         orientationValueLabel = createValueLabel("0°");
         addParameterRow(grid, 4, "Orientation", orientationValueLabel, null);
 
-        elapsedTimeValueLabel = createValueLabel("00:00");
+        elapsedTimeValueLabel = createValueLabel("Real: 00:00\nSim: 00:00");
         addParameterRow(grid, 5, "Elapsed", elapsedTimeValueLabel, null);
 
         cleanedAreaLabel = createValueLabel("0.0 m² (0.0%)");
@@ -230,6 +240,36 @@ public class ParametersPanel extends VBox {
         addParameterRowWithComboBox(grid, 2, "Movement Algorithm", movementAlgorithmCombo,
                 "Choose how the vacuum moves during simulation");
 
+        floorEfficiencyFloorLabel = createValueLabel(house.getFloorCovering().getDisplayName());
+        addParameterRow(grid, 3, "Floor Type", floorEfficiencyFloorLabel,
+                "Current floor covering whose cleaning efficiency is being edited");
+
+        floorEfficiencySpinner = new Spinner<>(House.FloorCovering.MIN_DEFAULT_EFFICIENCY,
+                House.FloorCovering.MAX_DEFAULT_EFFICIENCY,
+                house.getFloorCovering().getDefaultEfficiency(), FLOOR_EFFICIENCY_STEP);
+        floorEfficiencySpinner.setEditable(true);
+        floorEfficiencySpinner.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                House.FloorCovering currentCovering = house.getFloorCovering();
+                currentCovering.setDefaultEfficiency(newVal);
+                visualizationPane.render();
+            }
+            notifyParametersChanged();
+        });
+        configureSpinnerEditor(floorEfficiencySpinner, new StringConverter<Double>() {
+            @Override
+            public String toString(Double value) {
+                return value == null ? "" : String.format("%.2f", value);
+            }
+
+            @Override
+            public Double fromString(String string) {
+                return Double.parseDouble(string.trim());
+            }
+        });
+        addParameterRowWithSpinner(grid, 4, "Floor Efficiency (0-1)", floorEfficiencySpinner,
+                "Per-pass cleaning efficiency for the active floor type. 1.00 is strongest.");
+
         robotSpeedSpinner = new Spinner<>(0.08, 0.91, 0.30, 0.02);
         robotSpeedSpinner.setEditable(true);
         robotSpeedSpinner.valueProperty().addListener((obs, oldVal, newVal) -> {
@@ -249,7 +289,7 @@ public class ParametersPanel extends VBox {
                 return Double.parseDouble(string.trim());
             }
         });
-        addParameterRowWithSpinner(grid, 3, "Robot Speed (m/s)", robotSpeedSpinner,
+        addParameterRowWithSpinner(grid, 5, "Robot Speed (m/s)", robotSpeedSpinner,
                 "Adjust physical movement speed used by cleaning algorithms");
 
         Label noteLabel = new Label(
@@ -408,7 +448,11 @@ public class ParametersPanel extends VBox {
         AnimationTimer updateTimer = new AnimationTimer() {
             @Override
             public void handle(long now) {
-                updateValues();
+                if (lastUiRefreshNanos < 0
+                        || (now - lastUiRefreshNanos) >= UI_REFRESH_INTERVAL_NANOS) {
+                    updateValues();
+                    lastUiRefreshNanos = now;
+                }
             }
         };
         updateTimer.start();
@@ -418,6 +462,8 @@ public class ParametersPanel extends VBox {
      * Updates all displayed values from vacuum/simulation data
      */
     private void updateValues() {
+        syncFloorEfficiencyControls();
+
         double battery = vacuum.getBattery();
         batteryValueLabel.setText(String.format("%.1f%%", battery));
 
@@ -432,7 +478,10 @@ public class ParametersPanel extends VBox {
         double speedMetersPerSecond = feetPerSecondToMetersPerSecond(vacuum.getSpeed());
         speedValueLabel.setText(String.format("%.2f m/s", speedMetersPerSecond));
 
-        elapsedTimeValueLabel.setText(formatElapsedTime(simTimer.getElapsedSeconds()));
+        double realElapsed = simTimer.getRealElapsedSeconds();
+        double simulationElapsed = simTimer.getSimulationElapsedSeconds();
+        elapsedTimeValueLabel.setText(String.format("Real: %s\nSim: %s",
+                formatElapsedTime(realElapsed), formatElapsedTime(simulationElapsed)));
 
         double areaCleaned = visualizationPane.getCleanedArea();
         double cleanableArea = visualizationPane.getComputedCleanableArea();
@@ -441,6 +490,26 @@ public class ParametersPanel extends VBox {
         cleanableAreaValueLabel.setText(String.format("%.1f m²", cleanableArea));
         nonCleanableAreaValueLabel
                 .setText(String.format("%.1f m²", visualizationPane.getNonCleanableArea()));
+    }
+
+    private void syncFloorEfficiencyControls() {
+        if (house == null || floorEfficiencySpinner == null || floorEfficiencyFloorLabel == null) {
+            return;
+        }
+
+        House.FloorCovering currentCovering = house.getFloorCovering();
+        floorEfficiencyFloorLabel.setText(currentCovering.getDisplayName());
+
+        double currentEfficiency = currentCovering.getDefaultEfficiency();
+        Double shownValue = floorEfficiencySpinner.getValue();
+        boolean floorChanged = currentCovering != lastObservedFloorCovering;
+        boolean spinnerOutOfSync =
+                shownValue == null || Math.abs(shownValue - currentEfficiency) > 0.0001;
+
+        if (floorChanged || spinnerOutOfSync) {
+            floorEfficiencySpinner.getValueFactory().setValue(currentEfficiency);
+            lastObservedFloorCovering = currentCovering;
+        }
     }
 
     public int getStartBattery() {
@@ -531,6 +600,7 @@ public class ParametersPanel extends VBox {
         batteryDrainSpinner.setDisable(!editable);
         batteryStartSpinner.setDisable(!editable);
         movementAlgorithmCombo.setDisable(!editable);
+        floorEfficiencySpinner.setDisable(!editable);
         robotSpeedSpinner.setDisable(!editable);
         speed1xButton.setDisable(!editable);
         speed2xButton.setDisable(!editable);

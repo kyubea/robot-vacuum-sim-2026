@@ -14,8 +14,9 @@ public class simulationTimer {
 
     private boolean simActive = false;
     private long prevTime = -1;
-    private long simulationStartNanos = -1;
-    private long elapsedAtStopNanos = -1;
+    private long runStartNanos = -1;
+    private double accumulatedRealSeconds = 0.0;
+    private double accumulatedSimulationSeconds = 0.0;
     private double timeMultiplier = 1.0; // Speed multiplier for simulation (1x, 2x, 10x, 1000x,
                                          // etc)
     private Runnable simulationCompleteHandler;
@@ -29,31 +30,32 @@ public class simulationTimer {
             @Override
             public void handle(long currentTime) {
                 if (prevTime > 0) {
-                    double deltaTime = (currentTime - prevTime) / 1_000_000_000.0;
-                    if (deltaTime < (1.0 / 60.0))
+                    double realDeltaTime = (currentTime - prevTime) / 1_000_000_000.0;
+                    if (realDeltaTime <= 0.0) {
+                        prevTime = currentTime;
                         return;
-                    deltaTime *= timeMultiplier; // Apply speed multiplier
+                    }
+                    // Clamp very large catch-up steps to reduce visible hitching after stalls.
+                    double deltaTime = Math.min(0.5, realDeltaTime * timeMultiplier);
                     // Bound catch-up work to prevent frame-time spirals under heavy load.
-                    // deltaTime = Math.min(deltaTime, 0.30);
-                    // Process in smaller slices to reduce tunneling through thin colliders.
-                    double remaining = deltaTime;
-                    final double maxStep = 1.0 / 60.0;
-                    // int iterations = 0;
-                    // final int maxIterations = 30;
-                    while (remaining > 0) {
-                        double step = Math.min(maxStep, remaining);
+                    // Process in bounded slices to reduce tunneling through thin colliders.
+                    final double maxSubStep = 1.0 / 60.0;
+                    int subSteps = Math.max(1, (int) Math.ceil(deltaTime / maxSubStep));
+                    subSteps = Math.min(subSteps, 30);
+                    double step = deltaTime / subSteps;
+                    for (int i = 0; i < subSteps; i++) {
                         vacuum.update(step);
                         visualizationPane.updateCleaningFromVacuumFrontHitbox();
+                        accumulatedSimulationSeconds += step;
 
                         if (vacuum.getBattery() <= 0 || visualizationPane.isHouseFullyCleaned()) {
-                            stop();
+                            stopAtNanos(currentTime);
                             if (simulationCompleteHandler != null) {
                                 simulationCompleteHandler.run();
                             }
                             visualizationPane.render();
                             return;
                         }
-                        remaining -= step;
                     }
                 }
                 visualizationPane.render();
@@ -65,19 +67,17 @@ public class simulationTimer {
     public void start(double startBattery, int moveMode) {
         vacuum.reset(startBattery, moveMode);
         visualizationPane.resetCleaningMap();
-        prevTime = System.nanoTime();
-        simulationStartNanos = prevTime;
-        elapsedAtStopNanos = -1;
+        accumulatedRealSeconds = 0.0;
+        accumulatedSimulationSeconds = 0.0;
+        runStartNanos = System.nanoTime();
+        prevTime = runStartNanos;
         timer.start();
         simActive = true;
     }
 
     public void resume() {
-        prevTime = System.nanoTime();
-        elapsedAtStopNanos = -1;
-        if (simulationStartNanos < 0) {
-            simulationStartNanos = prevTime;
-        }
+        runStartNanos = System.nanoTime();
+        prevTime = runStartNanos;
         timer.start();
         simActive = true;
     }
@@ -93,10 +93,16 @@ public class simulationTimer {
 
 
     public void stop() {
+        stopAtNanos(System.nanoTime());
+    }
+
+    private void stopAtNanos(long stopTimeNanos) {
         timer.stop();
-        if (prevTime > 0) {
-            elapsedAtStopNanos = prevTime;
+        if (simActive && runStartNanos > 0) {
+            accumulatedRealSeconds +=
+                    Math.max(0.0, (stopTimeNanos - runStartNanos) / 1_000_000_000.0);
         }
+        runStartNanos = -1;
         prevTime = -1;
         simActive = false;
     }
@@ -113,19 +119,27 @@ public class simulationTimer {
         return timeMultiplier;
     }
 
-    public double getElapsedSeconds() {
-        if (simulationStartNanos < 0) {
-            return 0.0;
+    public double getRealElapsedSeconds() {
+        if (simActive && runStartNanos > 0) {
+            double currentSegment = (System.nanoTime() - runStartNanos) / 1_000_000_000.0;
+            return Math.max(0.0, accumulatedRealSeconds + currentSegment);
         }
+        return Math.max(0.0, accumulatedRealSeconds);
+    }
 
-        long endTime = simActive ? System.nanoTime()
-                : elapsedAtStopNanos > 0 ? elapsedAtStopNanos : System.nanoTime();
-        return Math.max(0.0, (endTime - simulationStartNanos) / 1_000_000_000.0);
+    public double getSimulationElapsedSeconds() {
+        return Math.max(0.0, accumulatedSimulationSeconds);
+    }
+
+    public double getElapsedSeconds() {
+        return getRealElapsedSeconds();
     }
 
     public void resetElapsedTime() {
-        simulationStartNanos = -1;
-        elapsedAtStopNanos = -1;
+        runStartNanos = -1;
+        prevTime = -1;
+        accumulatedRealSeconds = 0.0;
+        accumulatedSimulationSeconds = 0.0;
     }
 
     public void setSimulationCompleteHandler(Runnable simulationCompleteHandler) {

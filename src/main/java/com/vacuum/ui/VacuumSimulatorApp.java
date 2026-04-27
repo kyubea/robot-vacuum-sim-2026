@@ -1133,7 +1133,6 @@ public class VacuumSimulatorApp extends Application {
         VBox algorithmBox = new VBox(6);
         algorithmBox.setFillWidth(true);
         CheckBox selectAllAlgorithms = new CheckBox("Select all algorithms");
-        selectAllAlgorithms.setAllowIndeterminate(true);
         selectAllAlgorithms.getStyleClass().add("metric-value");
 
         Map<Vacuum.MoveMode, CheckBox> algorithmChecks = new EnumMap<>(Vacuum.MoveMode.class);
@@ -1927,10 +1926,11 @@ public class VacuumSimulatorApp extends Application {
 
         // House info panel
         VBox infoPanel = createInfoPanel();
-        infoPanel.setStyle("-fx-border-color: transparent transparent transparent #CCCCCC;" + "-fx-border-width: 0 0 0 1;");
+        infoPanel.setStyle("-fx-border-color: transparent transparent transparent #CCCCCC;"
+                + "-fx-border-width: 0 0 0 1;");
 
         // Parameters panel
-        parametersPanel = new ParametersPanel(vacuum, simTimer, visualizationPane);
+        parametersPanel = new ParametersPanel(house, vacuum, simTimer, visualizationPane);
         parametersPanel.setParametersEditable(true);
         parametersPanel.setParametersChangedHandler(this::markSimulationChanged);
 
