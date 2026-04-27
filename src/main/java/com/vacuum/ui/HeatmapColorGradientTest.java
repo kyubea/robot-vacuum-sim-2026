@@ -57,7 +57,6 @@ public class HeatmapColorGradientTest {
                 ColumnConstraints colConstraints = new ColumnConstraints();
                 colConstraints.setHgrow(Priority.ALWAYS);
                 heatmapGridPane.getColumnConstraints().add(colConstraints);
-                // Now I just need to figure out how to actually display it
             }
         }
 
@@ -69,8 +68,4 @@ public class HeatmapColorGradientTest {
             makeHeatmapGridPane(room);
         }
     }
-    // Maybe include the transparency slider on the VacuumSimulatorApp.java file since that is a UI
-    // thing
-
-
 }
