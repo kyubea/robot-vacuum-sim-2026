@@ -14,8 +14,11 @@ public class simulationTimer {
 
     private boolean simActive = false;
     private long prevTime = -1;
+    private long simulationStartNanos = -1;
+    private long elapsedAtStopNanos = -1;
     private double timeMultiplier = 1.0; // Speed multiplier for simulation (1x, 2x, 10x, 1000x,
                                          // etc)
+    private Runnable simulationCompleteHandler;
 
 
     public simulationTimer(Vacuum vacuum, HouseVisualizationPane visualizationPane) {
@@ -39,6 +42,15 @@ public class simulationTimer {
                         double step = Math.min(maxStep, remaining);
                         vacuum.update(step);
                         visualizationPane.updateCleaningFromVacuumFrontHitbox();
+
+                        if (vacuum.getBattery() <= 0 || visualizationPane.isHouseFullyCleaned()) {
+                            stop();
+                            if (simulationCompleteHandler != null) {
+                                simulationCompleteHandler.run();
+                            }
+                            visualizationPane.render();
+                            return;
+                        }
                         remaining -= step;
                     }
                 }
@@ -52,12 +64,18 @@ public class simulationTimer {
         vacuum.reset(startBattery, moveMode);
         visualizationPane.resetCleaningMap();
         prevTime = System.nanoTime();
+        simulationStartNanos = prevTime;
+        elapsedAtStopNanos = -1;
         timer.start();
         simActive = true;
     }
 
     public void resume() {
         prevTime = System.nanoTime();
+        elapsedAtStopNanos = -1;
+        if (simulationStartNanos < 0) {
+            simulationStartNanos = prevTime;
+        }
         timer.start();
         simActive = true;
     }
@@ -74,6 +92,9 @@ public class simulationTimer {
 
     public void stop() {
         timer.stop();
+        if (prevTime > 0) {
+            elapsedAtStopNanos = prevTime;
+        }
         prevTime = -1;
         simActive = false;
     }
@@ -88,6 +109,25 @@ public class simulationTimer {
 
     public double getTimeMultiplier() {
         return timeMultiplier;
+    }
+
+    public double getElapsedSeconds() {
+        if (simulationStartNanos < 0) {
+            return 0.0;
+        }
+
+        long endTime = simActive ? System.nanoTime()
+                : elapsedAtStopNanos > 0 ? elapsedAtStopNanos : System.nanoTime();
+        return Math.max(0.0, (endTime - simulationStartNanos) / 1_000_000_000.0);
+    }
+
+    public void resetElapsedTime() {
+        simulationStartNanos = -1;
+        elapsedAtStopNanos = -1;
+    }
+
+    public void setSimulationCompleteHandler(Runnable simulationCompleteHandler) {
+        this.simulationCompleteHandler = simulationCompleteHandler;
     }
 
 }
