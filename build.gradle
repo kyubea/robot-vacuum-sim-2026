@@ -27,6 +27,10 @@ dependencies {
 
 application {
     mainClass = 'com.vacuum.Main'
+    applicationDefaultJvmArgs = [
+        '--sun-misc-unsafe-memory-access=allow',
+        '--enable-native-access=ALL-UNNAMED'
+    ]
 }
 
 test {
