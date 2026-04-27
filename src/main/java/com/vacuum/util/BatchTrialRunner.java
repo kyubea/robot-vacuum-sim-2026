@@ -337,6 +337,7 @@ public final class BatchTrialRunner {
         private final Set<Long> cleanableTiles = new HashSet<>();
         private final Map<Long, Integer> tilePassRequirements = new HashMap<>();
         private final Map<Long, Integer> tilePassCounts = new HashMap<>();
+        private final Set<Long> tilesTouchedLastUpdate = new HashSet<>();
         private final double cleaningEfficiencyPerPass;
         private final House house;
         private final Vacuum vacuum;
@@ -399,6 +400,7 @@ public final class BatchTrialRunner {
             int endGx = (int) Math.floor(centerX + cleanRadius);
             int startGy = (int) Math.floor(centerY - cleanRadius);
             int endGy = (int) Math.floor(centerY + cleanRadius);
+            Set<Long> tilesTouchedThisUpdate = new HashSet<>();
 
             for (int gx = startGx; gx <= endGx; gx++) {
                 for (int gy = startGy; gy <= endGy; gy++) {
@@ -410,19 +412,24 @@ public final class BatchTrialRunner {
                     if (!cleanableTiles.contains(tileKey)) {
                         continue;
                     }
+                    tilesTouchedThisUpdate.add(tileKey);
 
                     int required = tilePassRequirements.getOrDefault(tileKey, 1);
                     int currentPasses = tilePassCounts.getOrDefault(tileKey, 0);
-                    if (currentPasses < required) {
+                    if (!tilesTouchedLastUpdate.contains(tileKey) && currentPasses < required) {
                         double oldProgress =
-                                Math.min(1.0, currentPasses * cleaningEfficiencyPerPass);
+                                Math.min(1.0, (double) currentPasses / Math.max(1, required));
                         int newPasses = currentPasses + 1;
-                        double newProgress = Math.min(1.0, newPasses * cleaningEfficiencyPerPass);
+                        double newProgress =
+                                Math.min(1.0, (double) newPasses / Math.max(1, required));
                         tilePassCounts.put(tileKey, newPasses);
                         accumulatedCoverageProgress += (newProgress - oldProgress);
                     }
                 }
             }
+
+            tilesTouchedLastUpdate.clear();
+            tilesTouchedLastUpdate.addAll(tilesTouchedThisUpdate);
         }
 
         private boolean circleIntersectsTile(double cx, double cy, double radius, int tileX,

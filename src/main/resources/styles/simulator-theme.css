@@ -189,6 +189,110 @@
     -fx-padding: 8;
 }
 
+.controls-window {
+    -fx-border-width: 0;
+}
+
+.controls-window .right-scroll-pane {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.controls-window .right-scroll-pane>.viewport {
+    -fx-background-color: #e8eff3;
+}
+
+.controls-window .right-scroll-pane .corner {
+    -fx-background-color: #e8eff3;
+}
+
+.controls-window .right-scroll-pane>.content {
+    -fx-background-color: transparent;
+}
+
+.controls-accordion {
+    -fx-padding: 2 0 4 0;
+}
+
+.controls-accordion .titled-pane {
+    -fx-animated: false;
+}
+
+.controls-accordion .titled-pane>.title {
+    -fx-background-color: linear-gradient(to bottom, #edf3f7, #e3edf3);
+    -fx-border-color: #c5d2db;
+    -fx-border-width: 1;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-padding: 8 10 8 10;
+}
+
+.controls-accordion .titled-pane>.title>.text {
+    -fx-fill: -text-main;
+    -fx-font-family: "Bahnschrift SemiBold", "Segoe UI Semibold";
+    -fx-font-size: 12px;
+}
+
+.controls-accordion .titled-pane>.content {
+    -fx-background-color: #f7fafc;
+    -fx-border-color: #d0dae2;
+    -fx-border-width: 0 1 1 1;
+    -fx-background-radius: 0 0 8 8;
+    -fx-border-radius: 0 0 8 8;
+    -fx-padding: 0;
+}
+
+.controls-section-body {
+    -fx-padding: 8 10 10 10;
+}
+
+.controls-section-text {
+    -fx-text-fill: -text-main;
+    -fx-font-size: 11px;
+    -fx-line-spacing: 1.5px;
+}
+
+.parameters-panel .combo-box-base,
+.parameters-panel .spinner,
+.parameters-panel .spinner .text-field,
+.parameters-panel .text-field {
+    -fx-background-color: #f7fafc;
+    -fx-border-color: #bfcdd7;
+    -fx-border-radius: 5;
+    -fx-background-radius: 5;
+    -fx-text-fill: #1f2d36;
+}
+
+.parameters-panel .combo-box-base .list-cell,
+.parameters-panel .spinner .text-field {
+    -fx-text-fill: #1f2d36;
+}
+
+.parameters-panel .combo-box-base .arrow-button,
+.parameters-panel .spinner .increment-arrow-button,
+.parameters-panel .spinner .decrement-arrow-button {
+    -fx-background-color: #e6edf2;
+    -fx-border-color: #bfcdd7;
+}
+
+.parameters-panel .combo-box-base:focused,
+.parameters-panel .spinner:focused,
+.parameters-panel .text-field:focused {
+    -fx-border-color: -accent;
+}
+
+.parameters-panel .combo-box-base:disabled,
+.parameters-panel .spinner:disabled,
+.parameters-panel .text-field:disabled {
+    -fx-opacity: 0.92;
+}
+
+.parameters-panel .combo-box-base:disabled .list-cell,
+.parameters-panel .spinner:disabled .text-field {
+    -fx-text-fill: #6b7f8a;
+}
+
 .shell-button {
     -fx-background-color: #e0e8ec;
     -fx-border-color: #b5c4cd;
@@ -245,6 +349,69 @@
 .room-tooltip-detail {
     -fx-font-size: 11px;
     -fx-text-fill: #4e5f6a;
+}
+
+.context-menu {
+    -fx-background-color: #f7fafc;
+    -fx-border-color: #c7d3da;
+    -fx-border-width: 1;
+    -fx-background-insets: 0;
+    -fx-padding: 4;
+}
+
+.context-menu .menu-item {
+    -fx-background-color: transparent;
+    -fx-background-radius: 6;
+}
+
+.context-menu .menu-item .label {
+    -fx-text-fill: #1f2d36;
+    -fx-font-family: "Bahnschrift", "Segoe UI";
+}
+
+.context-menu .menu-item:focused,
+.context-menu .menu-item:hovered {
+    -fx-background-color: #d8eef0;
+}
+
+.context-menu .separator:horizontal .line {
+    -fx-border-color: #d2dce3 transparent transparent transparent;
+}
+
+.tooltip {
+    -fx-background-color: #f3f6f8;
+    -fx-text-fill: #1f2d36;
+    -fx-border-color: #b9c8d1;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-font-size: 11px;
+}
+
+.combo-box-popup .list-view,
+.choice-box .context-menu,
+.spinner .text-field,
+.text-field,
+.text-area,
+.dialog-pane {
+    -fx-background-color: #f7fafc;
+    -fx-text-fill: #1f2d36;
+}
+
+.dialog-pane {
+    -fx-border-color: #c7d3da;
+}
+
+.dialog-pane .header-panel {
+    -fx-background-color: #eaf0f4;
+}
+
+.dialog-pane .header-panel .label,
+.dialog-pane .content.label {
+    -fx-text-fill: #1f2d36;
+}
+
+.list-cell {
+    -fx-text-fill: #1f2d36;
 }
 
 /* ---- Dark mode overrides ---- */
@@ -370,6 +537,76 @@
     -fx-text-fill: -text-muted;
 }
 
+.app-root.dark-mode .controls-accordion .titled-pane>.title {
+    -fx-background-color: linear-gradient(to bottom, #1e313f, #1b2b36);
+    -fx-border-color: #2a4252;
+}
+
+.app-root.dark-mode.controls-window .right-scroll-pane,
+.app-root.dark-mode .controls-window .right-scroll-pane {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.app-root.dark-mode.controls-window .right-scroll-pane>.viewport,
+.app-root.dark-mode .controls-window .right-scroll-pane>.viewport,
+.app-root.dark-mode.controls-window .right-scroll-pane .corner,
+.app-root.dark-mode .controls-window .right-scroll-pane .corner {
+    -fx-background-color: #141f2a;
+}
+
+.app-root.dark-mode .controls-accordion .titled-pane>.title>.text {
+    -fx-fill: #d8e6ee;
+}
+
+.app-root.dark-mode .controls-accordion .titled-pane>.content {
+    -fx-background-color: #172530;
+    -fx-border-color: #2a3e4e;
+}
+
+.app-root.dark-mode .controls-section-text {
+    -fx-text-fill: #c5d8e3;
+}
+
+.app-root.dark-mode .parameters-panel .combo-box-base,
+.app-root.dark-mode .parameters-panel .spinner,
+.app-root.dark-mode .parameters-panel .spinner .text-field,
+.app-root.dark-mode .parameters-panel .text-field {
+    -fx-background-color: #1b2a36;
+    -fx-border-color: #2a3e4e;
+    -fx-text-fill: #d8e6ee;
+}
+
+.app-root.dark-mode .parameters-panel .combo-box-base .list-cell,
+.app-root.dark-mode .parameters-panel .spinner .text-field {
+    -fx-text-fill: #d8e6ee;
+}
+
+.app-root.dark-mode .parameters-panel .combo-box-base .arrow-button,
+.app-root.dark-mode .parameters-panel .spinner .increment-arrow-button,
+.app-root.dark-mode .parameters-panel .spinner .decrement-arrow-button {
+    -fx-background-color: #223645;
+    -fx-border-color: #2a3e4e;
+}
+
+.app-root.dark-mode .parameters-panel .combo-box-base:disabled,
+.app-root.dark-mode .parameters-panel .spinner:disabled,
+.app-root.dark-mode .parameters-panel .text-field:disabled {
+    -fx-opacity: 1.0;
+    -fx-background-color: #223645;
+    -fx-border-color: #345466;
+}
+
+.app-root.dark-mode .parameters-panel .combo-box-base:disabled .list-cell,
+.app-root.dark-mode .parameters-panel .spinner:disabled .text-field,
+.app-root.dark-mode .parameters-panel .label:disabled {
+    -fx-text-fill: #d9e7ef;
+}
+
+.app-root.dark-mode .parameters-panel .combo-box-base:disabled .arrow {
+    -fx-background-color: #d9e7ef;
+}
+
 .app-root.dark-mode .shell-button {
     -fx-background-color: #1e2c38;
     -fx-border-color: #2a3e4e;
@@ -383,4 +620,246 @@
 
 .app-root.dark-mode .strip-hint {
     -fx-text-fill: #5a7a8a;
+}
+
+.app-root.dark-mode .status-label,
+.app-root.dark-mode .status-hint,
+.app-root.dark-mode .metric-label,
+.app-root.dark-mode .metric-value,
+.app-root.dark-mode .card-title,
+.app-root.dark-mode .panel-title,
+.app-root.dark-mode .panel-subtitle,
+.app-root.dark-mode .tool-group-label {
+    -fx-text-fill: -text-main;
+}
+
+.app-root.dark-mode .room-tooltip {
+    -fx-background-color: rgba(24, 37, 47, 0.95);
+    -fx-border-color: #2f4b5d;
+}
+
+.app-root.dark-mode .room-tooltip-title {
+    -fx-text-fill: #d8e6ee;
+}
+
+.app-root.dark-mode .room-tooltip-detail {
+    -fx-text-fill: #9cb6c4;
+}
+
+.app-root.dark-mode .context-menu {
+    -fx-background-color: #1b2a36;
+    -fx-border-color: #2a3e4e;
+}
+
+.app-root.dark-mode .context-menu .menu-item .label {
+    -fx-text-fill: #d8e6ee;
+}
+
+.app-root.dark-mode .context-menu .menu-item:focused,
+.app-root.dark-mode .context-menu .menu-item:hovered {
+    -fx-background-color: #1f3a47;
+}
+
+.app-root.dark-mode .context-menu .separator:horizontal .line {
+    -fx-border-color: #2a3e4e transparent transparent transparent;
+}
+
+.app-root.dark-mode .scroll-bar,
+.dialog-pane.app-root.dark-mode .scroll-bar,
+.dialog-pane.dark-mode .scroll-bar {
+    -fx-background-color: #16232e;
+}
+
+.app-root.dark-mode .scroll-bar .track,
+.dialog-pane.app-root.dark-mode .scroll-bar .track,
+.dialog-pane.dark-mode .scroll-bar .track {
+    -fx-background-color: #1a2a36;
+    -fx-background-insets: 0;
+    -fx-background-radius: 999;
+}
+
+.app-root.dark-mode .scroll-bar .thumb,
+.dialog-pane.app-root.dark-mode .scroll-bar .thumb,
+.dialog-pane.dark-mode .scroll-bar .thumb {
+    -fx-background-color: #365468;
+    -fx-background-insets: 2;
+    -fx-background-radius: 999;
+}
+
+.app-root.dark-mode .scroll-bar .thumb:hover,
+.dialog-pane.app-root.dark-mode .scroll-bar .thumb:hover,
+.dialog-pane.dark-mode .scroll-bar .thumb:hover {
+    -fx-background-color: #48708a;
+}
+
+.app-root.dark-mode .scroll-bar .thumb:pressed,
+.dialog-pane.app-root.dark-mode .scroll-bar .thumb:pressed,
+.dialog-pane.dark-mode .scroll-bar .thumb:pressed {
+    -fx-background-color: #5a88a8;
+}
+
+.app-root.dark-mode .scroll-bar .increment-button,
+.app-root.dark-mode .scroll-bar .decrement-button,
+.dialog-pane.app-root.dark-mode .scroll-bar .increment-button,
+.dialog-pane.app-root.dark-mode .scroll-bar .decrement-button,
+.dialog-pane.dark-mode .scroll-bar .increment-button,
+.dialog-pane.dark-mode .scroll-bar .decrement-button {
+    -fx-background-color: #1f3342;
+    -fx-border-color: #2a4658;
+}
+
+.app-root.dark-mode .scroll-bar .increment-arrow,
+.app-root.dark-mode .scroll-bar .decrement-arrow,
+.dialog-pane.app-root.dark-mode .scroll-bar .increment-arrow,
+.dialog-pane.app-root.dark-mode .scroll-bar .decrement-arrow,
+.dialog-pane.dark-mode .scroll-bar .increment-arrow,
+.dialog-pane.dark-mode .scroll-bar .decrement-arrow {
+    -fx-background-color: #bdd3df;
+}
+
+.app-root.dark-mode .tooltip {
+    -fx-background-color: #1b2a36;
+    -fx-text-fill: #d8e6ee;
+    -fx-border-color: #2a3e4e;
+}
+
+.app-root.dark-mode .dialog-pane,
+.app-root.dark-mode .combo-box-popup .list-view,
+.app-root.dark-mode .choice-box .context-menu,
+.app-root.dark-mode .spinner .text-field,
+.app-root.dark-mode .text-field,
+.app-root.dark-mode .text-area {
+    -fx-background-color: #1b2a36;
+    -fx-text-fill: #d8e6ee;
+    -fx-border-color: #2a3e4e;
+}
+
+.app-root.dark-mode .combo-box-popup .list-cell {
+    -fx-background-color: #1b2a36;
+    -fx-text-fill: #d8e6ee;
+}
+
+.app-root.dark-mode .combo-box-popup .list-cell:filled:selected,
+.app-root.dark-mode .combo-box-popup .list-cell:filled:hover {
+    -fx-background-color: #0f7b82;
+    -fx-text-fill: #f2fbff;
+}
+
+.dialog-pane.app-root.dark-mode,
+.dialog-pane.dark-mode {
+    -fx-background-color: #1b2a36;
+    -fx-text-fill: #d8e6ee;
+    -fx-border-color: #2a3e4e;
+}
+
+.dialog-pane.app-root.dark-mode .combo-box-base,
+.dialog-pane.dark-mode .combo-box-base {
+    -fx-background-color: #1b2a36;
+    -fx-border-color: #2a3e4e;
+}
+
+.dialog-pane.app-root.dark-mode .combo-box-base .list-cell,
+.dialog-pane.dark-mode .combo-box-base .list-cell,
+.dialog-pane.app-root.dark-mode .combo-box-base .text,
+.dialog-pane.dark-mode .combo-box-base .text {
+    -fx-text-fill: #d8e6ee;
+}
+
+.dialog-pane.app-root.dark-mode .combo-box-base:focused,
+.dialog-pane.dark-mode .combo-box-base:focused {
+    -fx-border-color: #1da3ab;
+}
+
+.dialog-pane.app-root.dark-mode .combo-box-base .arrow,
+.dialog-pane.dark-mode .combo-box-base .arrow {
+    -fx-background-color: #d8e6ee;
+}
+
+.dialog-pane.app-root.dark-mode .combo-box-base:disabled,
+.dialog-pane.dark-mode .combo-box-base:disabled {
+    -fx-opacity: 1.0;
+    -fx-background-color: #223645;
+    -fx-border-color: #345466;
+}
+
+.dialog-pane.app-root.dark-mode .combo-box-base:disabled .list-cell,
+.dialog-pane.dark-mode .combo-box-base:disabled .list-cell,
+.dialog-pane.app-root.dark-mode .combo-box-base:disabled .text,
+.dialog-pane.dark-mode .combo-box-base:disabled .text {
+    -fx-text-fill: #d9e7ef;
+}
+
+.dialog-pane.app-root.dark-mode .combo-box-popup .list-view,
+.dialog-pane.dark-mode .combo-box-popup .list-view {
+    -fx-background-color: #1b2a36;
+    -fx-border-color: #2a3e4e;
+}
+
+.dialog-pane.app-root.dark-mode .combo-box-popup .list-cell,
+.dialog-pane.dark-mode .combo-box-popup .list-cell {
+    -fx-background-color: #1b2a36;
+    -fx-text-fill: #d8e6ee;
+}
+
+.dialog-pane.app-root.dark-mode .combo-box-popup .list-cell:filled:selected,
+.dialog-pane.app-root.dark-mode .combo-box-popup .list-cell:filled:hover,
+.dialog-pane.dark-mode .combo-box-popup .list-cell:filled:selected,
+.dialog-pane.dark-mode .combo-box-popup .list-cell:filled:hover {
+    -fx-background-color: #0f7b82;
+    -fx-text-fill: #f2fbff;
+}
+
+.app-root.dark-mode .dialog-pane .header-panel {
+    -fx-background-color: #17232d;
+}
+
+.dialog-pane.app-root.dark-mode .header-panel,
+.dialog-pane.dark-mode .header-panel {
+    -fx-background-color: #17232d;
+}
+
+.app-root.dark-mode .dialog-pane .header-panel .label,
+.app-root.dark-mode .dialog-pane .content.label,
+.app-root.dark-mode .list-cell,
+.app-root.dark-mode .check-box .text,
+.app-root.dark-mode .radio-button .text,
+.app-root.dark-mode .label {
+    -fx-text-fill: #d8e6ee;
+}
+
+.dialog-pane.app-root.dark-mode .header-panel .label,
+.dialog-pane.app-root.dark-mode .content.label,
+.dialog-pane.app-root.dark-mode .list-cell,
+.dialog-pane.app-root.dark-mode .check-box .text,
+.dialog-pane.app-root.dark-mode .radio-button .text,
+.dialog-pane.app-root.dark-mode .label,
+.dialog-pane.dark-mode .header-panel .label,
+.dialog-pane.dark-mode .content.label,
+.dialog-pane.dark-mode .list-cell,
+.dialog-pane.dark-mode .check-box .text,
+.dialog-pane.dark-mode .radio-button .text,
+.dialog-pane.dark-mode .label {
+    -fx-text-fill: #d8e6ee;
+}
+
+.dialog-pane.app-root.dark-mode .check-box,
+.dialog-pane.dark-mode .check-box {
+    -fx-text-fill: #d8e6ee;
+}
+
+.dialog-pane.app-root.dark-mode .check-box .box,
+.dialog-pane.dark-mode .check-box .box {
+    -fx-background-color: #1b2a36;
+    -fx-border-color: #3a5567;
+}
+
+.dialog-pane.app-root.dark-mode .check-box:selected .box,
+.dialog-pane.dark-mode .check-box:selected .box {
+    -fx-background-color: #0f7b82;
+    -fx-border-color: #56b7be;
+}
+
+.dialog-pane.app-root.dark-mode .check-box:selected .mark,
+.dialog-pane.dark-mode .check-box:selected .mark {
+    -fx-background-color: #f2fbff;
 }
